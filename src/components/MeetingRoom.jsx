@@ -95,7 +95,7 @@ export const MeetingRoom = React.memo(({
   }
 
   const isHost = currentUser.phone === activeMeeting.hostPhone || currentUser.name === activeMeeting.hostName;
-  const isAuthorizedReportSaver = currentUser.role === 'admin' || currentUser.role === 'delegated';
+  const isAuthorizedReportSaver = isHost;
 
   // Local helper states for creating poll options inside local UI
   const addOptionField = () => setNewPollOptions([...newPollOptions, '']);
@@ -528,7 +528,7 @@ export const MeetingRoom = React.memo(({
                   ) : (
                     <div className="ai-report-viewer-warning">
                       <Info size={14} />
-                      <span>*Bạn có thể xem nội dung AI tổng hợp, nhưng chỉ Quản lý mới có quyền Lưu/Phát hành báo cáo.</span>
+                      <span>*Bạn có thể xem nội dung AI tổng hợp, nhưng chỉ Chủ trì mới có quyền Lưu/Phát hành báo cáo.</span>
                     </div>
                   )}
                 </div>
@@ -770,7 +770,7 @@ export const MeetingRoom = React.memo(({
                   ) : (
                     <div className="ai-report-viewer-warning">
                       <Info size={14} />
-                      <span>*Bạn có thể xem nội dung AI tổng hợp, nhưng chỉ Quản lý mới có quyền Lưu/Phát hành báo cáo.</span>
+                      <span>*Bạn có thể xem nội dung AI tổng hợp, nhưng chỉ Chủ trì mới có quyền Lưu/Phát hành báo cáo.</span>
                     </div>
                   )}
                 </div>
