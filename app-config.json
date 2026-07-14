@@ -1,0 +1,20 @@
+{
+  "pages": [
+    "pages/index"
+  ],
+  "app": {
+    "title": "Lịch Họp & Ý Kiến Nhóm",
+    "headerTitle": "Lịch Họp Nhóm",
+    "headerColor": "#0068FF",
+    "textColor": "white",
+    "statusBar": "normal",
+    "leftButton": "back",
+    "textAlign": "center",
+    "actionBarHidden": false
+  },
+  "listCSS": [],
+  "listSyncJS": [
+    "assets/index.js"
+  ],
+  "listAsyncJS": []
+}

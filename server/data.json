@@ -1,0 +1,287 @@
+{
+  "users": [
+    {
+      "id": "u1",
+      "name": "Nguyễn Văn A",
+      "phone": "0912345678",
+      "role": "admin",
+      "avatar": "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgMTAwIj48Y2lyY2xlIGN4PSI1MCIgY3k9IjUwIiByPSI1MCIgZmlsbD0iI0U2RjBGRiIvPjxjaXJjbGUgY3g9IjUwIiBjeT0iMzgiIHI9IjE4IiBmaWxsPSIjMDA2OEZGIi8+PHBhdGggZD0iTTUwIDYwYy0xOCAwLTMwIDgtMzAgMTh2NGg2MHYtNGMwLTEwLTEyLTE4LTMwLTE4eiIgZmlsbD0iIzAwNjhGRiIvPjwvc3ZnPg=="
+    },
+    {
+      "id": "u2",
+      "name": "Trần Thị B (Ủy quyền)",
+      "phone": "0987654321",
+      "role": "delegated",
+      "avatar": "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgMTAwIj48Y2lyY2xlIGN4PSI1MCIgY3k9IjUwIiByPSI1MCIgZmlsbD0iI0U2RjBGRiIvPjxjaXJjbGUgY3g9IjUwIiBjeT0iMzgiIHI9IjE4IiBmaWxsPSIjMDA2OEZGIi8+PHBhdGggZD0iTTUwIDYwYy0xOCAwLTMwIDgtMzAgMTh2NGg2MHYtNGMwLTEwLTEyLTE4LTMwLTE4eiIgZmlsbD0iIzAwNjhGRiIvPjwvc3ZnPg==",
+      "defaultMeet": "https://meet.google.com/abc-defg-hij"
+    },
+    {
+      "id": "u2_member",
+      "name": "Trần Thị B (Thành viên)",
+      "phone": "0987654321",
+      "role": "member",
+      "avatar": "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgMTAwIj48Y2lyY2xlIGN4PSI1MCIgY3k9IjUwIiByPSI1MCIgZmlsbD0iI0U2RjBGRiIvPjxjaXJjbGUgY3g9IjUwIiBjeT0iMzgiIHI9IjE4IiBmaWxsPSIjMDA2OEZGIi8+PHBhdGggZD0iTTUwIDYwYy0xOCAwLTMwIDgtMzAgMTh2NGg2MHYtNGMwLTEwLTEyLTE4LTMwLTE4eiIgZmlsbD0iIzAwNjhGRiIvPjwvc3ZnPg=="
+    },
+    {
+      "id": "u3",
+      "name": "Lê Văn C",
+      "phone": "0901234567",
+      "role": "member",
+      "avatar": "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgMTAwIj48Y2lyY2xlIGN4PSI1MCIgY3k9IjUwIiByPSI1MCIgZmlsbD0iI0U2RjBGRiIvPjxjaXJjbGUgY3g9IjUwIiBjeT0iMzgiIHI9IjE4IiBmaWxsPSIjMDA2OEZGIi8+PHBhdGggZD0iTTUwIDYwYy0xOCAwLTMwIDgtMzAgMTh2NGg2MHYtNGMwLTEwLTEyLTE4LTMwLTE4eiIgZmlsbD0iIzAwNjhGRiIvPjwvc3ZnPg=="
+    },
+    {
+      "id": "u4",
+      "name": "Phạm Văn D",
+      "phone": "0934567890",
+      "role": "member",
+      "avatar": "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgMTAwIj48Y2lyY2xlIGN4PSI1MCIgY3k9IjUwIiByPSI1MCIgZmlsbD0iI0U2RjBGRiIvPjxjaXJjbGUgY3g9IjUwIiBjeT0iMzgiIHI9IjE4IiBmaWxsPSIjMDA2OEZGIi8+PHBhdGggZD0iTTUwIDYwYy0xOCAwLTMwIDgtMzAgMTh2NGg2MHYtNGMwLTEwLTEyLTE4LTMwLTE4eiIgZmlsbD0iIzAwNjhGRiIvPjwvc3ZnPg=="
+    },
+    {
+      "id": "3368637342326461234",
+      "name": "User Name",
+      "avatar": "https://h5.zdn.vn/static/images/avatar.png",
+      "phone": "09xxxxxxxx",
+      "role": "admin"
+    },
+    {
+      "name": "Trần Đại Thanh",
+      "phone": "0866888888",
+      "role": "member",
+      "id": "u_1783522133328",
+      "avatar": "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgMTAwIj48Y2lyY2xlIGN4PSI1MCIgY3k9IjUwIiByPSI1MCIgZmlsbD0iI0U2RjBGRiIvPjxjaXJjbGUgY3g9IjUwIiBjeT0iMzgiIHI9IjE4IiBmaWxsPSIjMDA2OEZGIi8+PHBhdGggZD0iTTUwIDYwYy0xOCAwLTMwIDgtMzAgMTh2NGg2MHYtNGMwLTEwLTEyLTE4LTMwLTE4eiIgZmlsbD0iIzAwNjhGRiIvPjwvc3ZnPg=="
+    }
+  ],
+  "meetings": [
+    {
+      "id": "m1",
+      "title": "Họp Chiến Lược Zalo Mini App Q3",
+      "startTime": "2026-07-08T07:00:00.000Z",
+      "endTime": "2026-07-08T08:00:00.000Z",
+      "duration": 60,
+      "locationType": "online",
+      "locationDetail": "https://meet.google.com/xyz-mno-pqr",
+      "hostName": "Nguyễn Văn A",
+      "hostPhone": "0912345678",
+      "note": "Thành viên dùng mobile cài Zalo bản mới để kiểm tra.",
+      "preparationContent": "Chuẩn bị bản báo cáo doanh thu tháng trước và slide đề xuất tính năng mới.",
+      "files": [
+        {
+          "name": "Kế_hoạch_phát_triển_Q3.pdf",
+          "type": "pdf",
+          "url": "#",
+          "size": "2.4 MB"
+        },
+        {
+          "name": "Slide_Giới_Thiệu_Hệ_Thống.pptx",
+          "type": "ppt",
+          "url": "#",
+          "size": "5.1 MB"
+        }
+      ],
+      "createdBy": "u1",
+      "createdAt": "2026-07-08T09:22:24.730Z"
+    },
+    {
+      "id": "m2",
+      "title": "Thống Nhất Quy Trình Gửi Báo Cáo AI",
+      "startTime": "2026-07-09T02:30:00.000Z",
+      "endTime": "2026-07-09T03:30:00.000Z",
+      "duration": 60,
+      "locationType": "online",
+      "locationDetail": "https://meet.google.com/abc-defg-hij",
+      "hostName": "Trần Thị B (Ủy quyền)",
+      "hostPhone": "0987654321",
+      "note": "Ủy quyền cho Trần Thị B chủ trì họp chính.",
+      "preparationContent": "Đọc kỹ tài liệu tích hợp eSMS & Zalo OA API trong kênh thiết lập.",
+      "files": [],
+      "createdBy": "u1",
+      "createdAt": "2026-07-08T09:22:24.730Z"
+    }
+  ],
+  "notes": [
+    {
+      "id": "n1",
+      "meetingId": "m1",
+      "userId": "u1",
+      "content": "Cần tối ưu dung lượng gói tin tải lên Zalo Cloud.",
+      "updatedAt": "2026-07-09T07:39:35.365Z"
+    },
+    {
+      "id": "n2",
+      "meetingId": "m1",
+      "userId": "u2",
+      "content": "Đã hoàn thiện liên kết API SMS chi phí thấp (eSMS 350đ/sms).",
+      "updatedAt": "2026-07-08T09:22:24.730Z"
+    },
+    {
+      "id": "n3",
+      "meetingId": "m1",
+      "userId": "u3",
+      "content": "Giao diện bo tròn góc 12px nhìn rất hiện đại.",
+      "updatedAt": "2026-07-08T09:22:24.730Z"
+    },
+    {
+      "id": "note_1783502575231hjs3b",
+      "meetingId": "m1",
+      "userId": "u_1783436155741",
+      "content": "",
+      "updatedAt": "2026-07-08T09:22:55.231Z"
+    },
+    {
+      "id": "note_1783503080367r5cf8",
+      "meetingId": "m1",
+      "userId": "u_1783502665867",
+      "content": "",
+      "updatedAt": "2026-07-08T09:31:45.672Z"
+    },
+    {
+      "id": "note_1783503505997alvfs",
+      "meetingId": "m1",
+      "userId": "u_1783503498630",
+      "content": "",
+      "updatedAt": "2026-07-08T09:38:25.997Z"
+    },
+    {
+      "id": "note_1783522147031c5kqt",
+      "meetingId": "m1",
+      "userId": "u_1783522133328",
+      "content": "",
+      "updatedAt": "2026-07-08T14:57:41.295Z"
+    },
+    {
+      "id": "note_1783580858077aj5b1",
+      "meetingId": "m_1783580854853",
+      "userId": "u1",
+      "content": "",
+      "updatedAt": "2026-07-09T07:07:38.077Z"
+    }
+  ],
+  "polls": [
+    {
+      "id": "p1",
+      "meetingId": "m1",
+      "question": "Bạn đánh giá thế nào về thiết kế giao diện (UI) mới của App?",
+      "pollType": "single",
+      "isActive": true,
+      "options": [
+        {
+          "id": "o1",
+          "text": "Rất hiện đại, bo góc đẹp mắt (Khuyên dùng)"
+        },
+        {
+          "id": "o2",
+          "text": "Bình thường, dễ sử dụng"
+        },
+        {
+          "id": "o3",
+          "text": "Cần phối màu đỏ rực rỡ hơn"
+        }
+      ],
+      "answers": [
+        {
+          "userId": "u1",
+          "optionId": "o1"
+        },
+        {
+          "userId": "u2",
+          "optionId": "o1"
+        },
+        {
+          "userId": "u3",
+          "optionId": "o2"
+        },
+        {
+          "userId": "u4",
+          "optionId": "o1"
+        }
+      ]
+    },
+    {
+      "id": "p2",
+      "meetingId": "m1",
+      "question": "Chúng ta nên chọn nhà cung cấp nào làm kênh gửi SMS phụ trợ?",
+      "pollType": "multiple",
+      "isActive": true,
+      "options": [
+        {
+          "id": "o4",
+          "text": "eSMS (Giá rẻ nhất, hỗ trợ tốt)"
+        },
+        {
+          "id": "o5",
+          "text": "VietGuy (Hạ tầng ổn định)"
+        },
+        {
+          "id": "o6",
+          "text": "SpeedSMS (Tích hợp API nhanh)"
+        }
+      ],
+      "answers": [
+        {
+          "userId": "u1",
+          "optionId": "o4"
+        },
+        {
+          "userId": "u2",
+          "optionId": "o4"
+        },
+        {
+          "userId": "u2",
+          "optionId": "o5"
+        },
+        {
+          "userId": "u3",
+          "optionId": "o4"
+        },
+        {
+          "userId": "u4",
+          "optionId": "o6"
+        }
+      ]
+    },
+    {
+      "meetingId": "m_1783580854853",
+      "question": "không đồng nhất",
+      "pollType": "multiple",
+      "options": [
+        {
+          "id": "o_1783580922588_0",
+          "text": "a"
+        },
+        {
+          "id": "o_1783580922588_1",
+          "text": "b"
+        },
+        {
+          "id": "o_1783580922588_2",
+          "text": "c"
+        },
+        {
+          "id": "o_1783580922588_3",
+          "text": "d"
+        }
+      ],
+      "id": "p_1783580922593",
+      "isActive": true,
+      "answers": []
+    }
+  ],
+  "reports": [
+    {
+      "id": "r1",
+      "meetingId": "m0",
+      "title": "Họp Lập Kế Hoạch Dự Án Tuần 27",
+      "summaryContent": "**BIÊN BẢN CUỘC HỌP CHÍNH THỨC**\n*Thời gian:* 09:00 - 10:00, Ngày 03/07/2026\n\n**1. Các quyết định đã thống nhất:**\n- Thống nhất phát triển ứng dụng dưới dạng Zalo Mini App sử dụng React Vite.\n- Thiết kế giao diện theo tông màu chủ đạo Trắng, Xanh dương Zalo, và các điểm nhấn Đỏ cảnh báo. Các nút và hộp nhập liệu bo tròn góc 12px-16px.\n\n**2. Phân công công việc:**\n- **Nguyễn Văn A:** Thiết lập cấu hình Zalo Developer Console và tích hợp App ID.\n- **Trần Thị B:** Nghiên cứu dịch vụ SMS Gateway (eSMS) và tích hợp API Google Meet.\n- **Lê Văn C & Phạm Văn D:** Phác thảo UI/UX các màn hình chính (Calendar, Meeting Interaction).\n\n**3. Vấn đề thảo luận thêm:**\n- Sẽ khảo sát ý kiến nhóm về chi phí gửi tin nhắn ZNS của Zalo OA so với tin nhắn SMS truyền thống.",
+      "status": "published",
+      "createdBy": "Nguyễn Văn A",
+      "createdAt": "2026-07-05T09:22:24.730Z"
+    }
+  ],
+  "notifConfig": {
+    "zaloOaLinked": true,
+    "zaloAppId": "2495395253818320492",
+    "smsProvider": "esms",
+    "smsApiKey": "mock_key_esms_lowest_cost_vietnam",
+    "notifEnabled": true
+  }
+}

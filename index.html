@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/png" href="/src/assets/logo.png" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <title>Smeet - Lịch Họp & Ý Kiến</title>
+    <script>
+      window.addEventListener('error', function(event) {
+        var messageText = event.message || (event.error && event.error.message) || '';
+        
+        // Ignore non-fatal network and external script errors (e.g. adblocker, Zalo analytics script, fetch errors)
+        var isIgnored = false;
+        if (messageText) {
+          var msg = messageText.toLowerCase();
+          if (
+            msg.indexOf('fail to fetch') !== -1 ||
+            msg.indexOf('failed to fetch') !== -1 ||
+            msg.indexOf('h5.zadn.vn') !== -1 ||
+            msg.indexOf('satic') !== -1 ||
+            msg.indexOf('analytics') !== -1 ||
+            msg.indexOf('script error') !== -1 ||
+            msg.indexOf('resizeobserver') !== -1
+          ) {
+            isIgnored = true;
+          }
+        } else {
+          // If message is empty but it's a resource error (script/link/image failed to load), ignore it
+          if (event.target && (event.target.tagName === 'SCRIPT' || event.target.tagName === 'LINK' || event.target.tagName === 'IMG')) {
+            isIgnored = true;
+          }
+        }
+        
+        if (isIgnored) {
+          console.warn("Ignored non-fatal error:", messageText || event);
+          return;
+        }
+
+        var errorBox = document.getElementById('debug-error-box');
+        if (!errorBox) {
+          errorBox = document.createElement('div');
+          errorBox.id = 'debug-error-box';
+          errorBox.style.position = 'fixed';
+          errorBox.style.top = '0';
+          errorBox.style.left = '0';
+          errorBox.style.width = '100%';
+          errorBox.style.height = '100%';
+          errorBox.style.backgroundColor = '#fff';
+          errorBox.style.color = '#ff3b30';
+          errorBox.style.padding = '20px';
+          errorBox.style.boxSizing = 'border-box';
+          errorBox.style.zIndex = '999999';
+          errorBox.style.overflow = 'auto';
+          errorBox.style.fontFamily = 'monospace';
+          errorBox.style.fontSize = '12px';
+          errorBox.style.whiteSpace = 'pre-wrap';
+          errorBox.style.textAlign = 'left';
+          
+          var title = document.createElement('h2');
+          title.style.margin = '0 0 10px 0';
+          title.innerText = 'App Crash Log';
+          errorBox.appendChild(title);
+          
+          var msg = document.createElement('div');
+          msg.id = 'debug-error-msg';
+          msg.style.fontWeight = 'bold';
+          errorBox.appendChild(msg);
+          
+          var stack = document.createElement('pre');
+          stack.id = 'debug-error-stack';
+          stack.style.marginTop = '10px';
+          stack.style.backgroundColor = '#f7f7f9';
+          stack.style.padding = '10px';
+          stack.style.borderRadius = '4px';
+          stack.style.overflow = 'auto';
+          errorBox.appendChild(stack);
+          
+          document.body.appendChild(errorBox);
+        }
+        
+        var msgToDisplay = messageText || 'Unknown error';
+        var stackText = (event.error && event.error.stack) || 'No stack trace available';
+        
+        document.getElementById('debug-error-msg').innerText = msgToDisplay;
+        document.getElementById('debug-error-stack').innerText = stackText;
+      });
+    </script>
+  </head>
+  <body>
+    <div id="app"></div>
+    <script type="module" src="/src/main.jsx"></script>
+  </body>
+</html>
