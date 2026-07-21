@@ -1,8 +1,11 @@
 // Storage Client Adapter to communicate directly with the Node.js / Vercel Backend Server
 
+// URL backend Vercel cố định
+const VERCEL_BACKEND_URL = 'https://smeet-zalo-app.vercel.app';
+
 // Dynamic API Base URL detection
 export const getApiBase = () => {
-  if (typeof window === 'undefined') return '';
+  if (typeof window === 'undefined') return VERCEL_BACKEND_URL;
   
   // Custom API URL set in settings drawer takes top priority
   const customUrl = window.localStorage.getItem('zmp_custom_api_url');
@@ -17,13 +20,8 @@ export const getApiBase = () => {
     return ''; // Uses relative URL via Vite development proxy
   }
   
-  // If running on a real mobile device scanning QR code,
-  // We read Vite's environment variable VITE_API_URL if set.
-  if (import.meta.env && import.meta.env.VITE_API_URL) {
-    return import.meta.env.VITE_API_URL.replace(/\/+$/, '');
-  }
-  
-  return 'http://localhost:5000';
+  // Trên thiết bị thật (Zalo Mini App), luôn dùng Vercel backend
+  return VERCEL_BACKEND_URL;
 };
 
 // Auth header helper: inject x-user-id from localStorage session
