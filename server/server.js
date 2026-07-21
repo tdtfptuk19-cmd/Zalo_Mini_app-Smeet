@@ -12,17 +12,9 @@ dotenv.config();
 const app = express();
 const PORT = process.env.PORT || 5000;
 
-// --- CORS: chỉ cho phép frontend origin được cấu hình ---
-const ALLOWED_ORIGIN = process.env.ALLOWED_ORIGIN || 'http://localhost:5173';
+// --- CORS: Cho phép tất cả origin (Zalo Webview, Webhook, Mobile không gửi Origin header) ---
 app.use(cors({
-  origin: (origin, callback) => {
-    // Cho phép requests không có origin (ví dụ: mobile, curl nội bộ, Vercel SSR)
-    if (!origin || origin === ALLOWED_ORIGIN) {
-      callback(null, true);
-    } else {
-      callback(new Error(`CORS blocked: origin ${origin} not allowed`));
-    }
-  },
+  origin: true,
   credentials: true
 }));
 app.use(express.json());
