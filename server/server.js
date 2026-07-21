@@ -29,7 +29,7 @@ app.use(express.json());
 
 // Middleware: Tự động đảm bảo MongoDB Atlas đã kết nối trước khi xử lý API request trên Vercel
 app.use(async (req, res, next) => {
-  if (req.path === '/api/health') return next();
+  if (req.path === '/api/health' || req.path === '/api/zalo/webhook' || req.path === '/terms') return next();
   try {
     await db.connect();
     next();
@@ -37,6 +37,63 @@ app.use(async (req, res, next) => {
     console.error('[Middleware DB error]:', err.message);
     return res.status(500).json({ error: 'Không thể kết nối đến CSDL MongoDB Atlas. Vui lòng kiểm tra MONGODB_URI trong cài đặt Vercel.' });
   }
+});
+
+// ─────────────────────────────────────────────────────────────────────
+// ZALO WEBHOOK ENDPOINT (Dành cho Zalo xét duyệt Mini App)
+// ─────────────────────────────────────────────────────────────────────
+app.all('/api/zalo/webhook', (req, res) => {
+  console.log('[Zalo Webhook Event]:', req.body);
+  res.status(200).json({ error: 0, message: 'Success' });
+});
+
+// ─────────────────────────────────────────────────────────────────────
+// ĐIỀU KHOẢN SỬ DỤNG & CHÍNH SÁCH BẢO MẬT (Terms of Use)
+// ─────────────────────────────────────────────────────────────────────
+app.get('/terms', (req, res) => {
+  res.send(`
+    <!DOCTYPE html>
+    <html lang="vi">
+    <head>
+      <meta charset="UTF-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <title>Điều Khoản Sử Dụng - Smeet Zalo Mini App</title>
+      <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; line-height: 1.6; padding: 20px; max-width: 800px; margin: 0 auto; color: #333; }
+        h1 { color: #0068FF; border-bottom: 2px solid #0068FF; padding-bottom: 8px; }
+        h2 { color: #1e293b; margin-top: 24px; }
+        ul { padding-left: 20px; }
+        .box { background: #f8fafc; border-left: 4px solid #0068FF; padding: 12px 16px; margin: 16px 0; border-radius: 4px; }
+      </style>
+    </head>
+    <body>
+      <h1>ĐIỀU KHOẢN SỬ DỤNG & CHÍNH SÁCH BẢO MẬT SMEET</h1>
+      <p><em>Cập nhật lần cuối: 21/07/2026</em></p>
+      
+      <div class="box">
+        Ứng dụng <strong>Smeet (Zalo Mini App)</strong> cam kết bảo vệ dữ liệu cá nhân của người dùng tuân thủ theo Quy định của Zalo Developer và Pháp luật Việt Nam.
+      </div>
+
+      <h2>1. Các Dữ Liệu Cá Nhân Được Thu Thập</h2>
+      <p>Để phục vụ tính năng đặt lịch họp nhóm, điểm danh và tóm tắt biên bản cuộc họp, Smeet xin cấp các quyền tối thiểu bao gồm:</p>
+      <ul>
+        <li><strong>Thông tin tài khoản công khai:</strong> Tên hiển thị, Ảnh đại diện (Avatar), Zalo User ID.</li>
+        <li><strong>Số điện thoại:</strong> Dùng để gửi tin nhắn xác thực OTP và gửi thông báo nhắc lịch họp trước 24h & 30m.</li>
+        <li><strong>Dữ liệu cuộc họp:</strong> Tiêu đề cuộc họp, thời gian, địa điểm, ghi chú và các bản khảo sát do người dùng khởi tạo.</li>
+      </ul>
+
+      <h2>2. Mục Đích Sử Dụng Dữ Liệu</h2>
+      <ul>
+        <li>Xác thực danh tính người dùng khi tham gia vào các phòng họp nhóm.</li>
+        <li>Gửi thông báo nhắc nhở lịch họp qua hệ thống Zalo Notification / SMS.</li>
+        <li>Tổng hợp ghi chú cuộc họp để tạo biên bản tóm tắt tự động.</li>
+      </ul>
+
+      <h2>3. Quyền Rút Đồng Ý & Xóa Dữ Liệu</h2>
+      <p>Người dùng có quyền dừng sử dụng ứng dụng hoặc yêu cầu xóa toàn bộ dữ liệu cá nhân bất kỳ lúc nào bằng cách xóa Mini App Smeet khỏi tài khoản Zalo hoặc liên hệ qua email hỗ trợ: <strong>tthanh241.work@gmail.com</strong>.</p>
+    </body>
+    </html>
+  `);
 });
 
 // ─────────────────────────────────────────────────────────────────────
