@@ -156,3 +156,106 @@ app.use(cors({
 ```
 
 Chúc các bạn triển khai thành công hệ thống ứng dụng quản lý cuộc họp Smeet!
+
+---
+
+## 5. Giữ Backend Luôn "Thức" – Fix Cold Start (UptimeRobot)
+
+Vercel Serverless Functions sẽ **tắt sau 30 giây** không hoạt động. Lần mở app tiếp theo sẽ mất 2-4 giây để server khởi động lại (cold start). Giải pháp miễn phí: ping endpoint `/api/health` mỗi 5 phút.
+
+### Bước 5.1: Đăng ký UptimeRobot (miễn phí)
+1. Truy cập [UptimeRobot.com](https://uptimerobot.com) → **Sign up free**.
+2. Đăng nhập → nhấn **Add New Monitor**.
+3. Cấu hình như sau:
+   - **Monitor Type**: `HTTP(s)`
+   - **Friendly Name**: `Smeet Backend Keep-Alive`
+   - **URL**: `https://ten-du-an-backend.vercel.app/api/health` (thay bằng URL thực của bạn)
+   - **Monitoring Interval**: `5 minutes`
+4. Nhấp **Create Monitor**.
+
+UptimeRobot sẽ ping backend mỗi 5 phút → server luôn trong trạng thái "thức" → **không còn cold start**.
+
+> **Kết quả kiểm tra**: Truy cập `https://your-backend.vercel.app/api/health` trong trình duyệt, bạn sẽ thấy:
+> ```json
+> { "status": "ok", "service": "Smeet Backend", "timestamp": "...", "uptime": "...s" }
+> ```
+
+---
+
+## 6. Lối Tắt & Nhắc Nhở Tự Động – Zalo OA
+
+### Bước 6.1: Ghim Mini App vào Nhóm Zalo (Lối tắt 1 chạm)
+
+Đây là cách đơn giản nhất để thành viên truy cập Smeet nhanh chóng:
+
+1. **Admin nhóm** mở nhóm Zalo công ty.
+2. Nhấn vào **biểu tượng tiện ích** (⊞) ở góc dưới bên phải thanh chat.
+3. Chọn **Thêm tiện ích** → tìm kiếm **Smeet** (Mini App của bạn).
+4. Nhấn **Ghim vào nhóm** → Mini App xuất hiện ngay trong thanh tiện ích nhóm.
+
+✅ **Kết quả**: Mọi thành viên thấy icon Smeet ngay trong giao diện nhóm, chỉ cần **1 chạm** để mở app.
+
+### Bước 6.2: Tạo Zalo Official Account (OA) nội bộ
+
+Zalo OA là "tài khoản doanh nghiệp" trên Zalo, cho phép gửi tin nhắn tự động vào nhóm. **Miễn phí cho tổ chức nội bộ.**
+
+1. Truy cập [oa.zalo.me](https://oa.zalo.me) → **Tạo OA mới**.
+2. Chọn loại: **OA Doanh Nghiệp Nội Bộ**.
+3. Điền thông tin: Tên OA (ví dụ: `Smeet Bot`), logo, mô tả.
+4. Sau khi tạo xong, lấy **OA ID** từ trang quản lý.
+
+### Bước 6.3: Lấy Access Token để Backend gửi tin nhắn
+
+1. Truy cập [Zalo Developer Console](https://developers.zalo.me) → chọn App của bạn.
+2. Vào **Tích hợp OA** → liên kết OA vừa tạo với ứng dụng Mini App.
+3. Truy cập công cụ **Token Generator**: [developers.zalo.me/tools](https://developers.zalo.me/tools)
+4. Chọn OA của bạn → **Generate Access Token**.
+5. Sao chép `access_token` (có hiệu lực 90 ngày, cần gia hạn định kỳ).
+
+### Bước 6.4: Lấy Group ID của nhóm Zalo
+
+1. Mở ứng dụng Zalo trên điện thoại → vào nhóm công ty.
+2. Mời OA Bot (`Smeet Bot`) vào nhóm.
+3. Gọi API để lấy Group ID:
+   ```bash
+   curl -X GET "https://openapi.zalo.me/v3.0/oa/groupchat/list" \
+     -H "access_token: YOUR_OA_ACCESS_TOKEN"
+   ```
+4. Tìm nhóm của bạn trong kết quả → lấy giá trị `group_id`.
+
+### Bước 6.5: Cấu hình biến môi trường
+
+Thêm vào **Vercel** → **Environment Variables** của project backend:
+```env
+ZALO_OA_ACCESS_TOKEN=your_oa_access_token_here
+ZALO_OA_GROUP_ID=your_group_id_here
+```
+
+Hoặc trong file `server/.env` để chạy local:
+```env
+ZALO_OA_ACCESS_TOKEN=your_oa_access_token_here
+ZALO_OA_GROUP_ID=your_group_id_here
+```
+
+### Bước 6.6: Kiểm tra nhắc nhở hoạt động
+
+Sau khi cấu hình xong, admin có thể test gửi thông báo thủ công qua API:
+```bash
+curl -X POST "https://your-backend.vercel.app/api/notify/test" \
+  -H "Content-Type: application/json" \
+  -H "x-user-id: YOUR_ADMIN_USER_ID" \
+  -d '{"message": "🔔 Test thông báo từ Smeet – Hệ thống nhắc nhở đang hoạt động!"}'
+```
+
+Nếu cấu hình đúng, tin nhắn sẽ xuất hiện trong nhóm Zalo ngay lập tức.
+
+### Lịch nhắc nhở tự động
+
+Hệ thống backend sẽ **tự động kiểm tra mỗi 30 phút** và gửi:
+
+| Thời điểm | Nội dung thông báo |
+|---|---|
+| **24 giờ trước** họp | 📅 Nhắc họp ngày mai: Tên, thời gian, chủ trì, địa điểm |
+| **30 phút trước** họp | 🔔 Sắp họp: Tên, giờ bắt đầu, link Meet (nếu có) |
+
+> **Lưu ý quan trọng**: Access Token của Zalo OA có hiệu lực **90 ngày**. Hãy đặt lịch nhắc nhở để gia hạn token trước khi hết hạn để đảm bảo hệ thống nhắc nhở hoạt động liên tục.

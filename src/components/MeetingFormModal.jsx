@@ -266,6 +266,25 @@ export const MeetingFormModal = React.memo(({
 
   if (!isOpen) return null;
 
+  // Phân quyền: member chỉ xem/edit nếu họ là host; không được tạo mới
+  const isAdminOrDelegated = currentUser?.role === 'admin' || currentUser?.role === 'delegated';
+  const isMemberCreatingNew = !editingMeeting && !isAdminOrDelegated;
+  if (isMemberCreatingNew) {
+    return (
+      <div className="modal-overlay">
+        <div className="modal-content" style={{ maxWidth: 360, textAlign: 'center', padding: '2rem' }}>
+          <div style={{ fontSize: '2.5rem', marginBottom: '0.75rem' }}>🔒</div>
+          <h3 style={{ marginBottom: '0.5rem' }}>Không có quyền</h3>
+          <p style={{ color: 'var(--text-secondary)', marginBottom: '1.5rem', fontSize: '0.9rem' }}>
+            Chỉ <strong>Quản lý</strong> hoặc <strong>Người được ủy quyền</strong> mới được tạo cuộc họp mới.
+            Vui lòng liên hệ admin để được phân quyền.
+          </p>
+          <button onClick={onClose} className="btn btn-primary">Đóng</button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="modal-overlay">
       <div className="modal-content form-wizard-modal">

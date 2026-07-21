@@ -1,5 +1,13 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef } from 'react';
 import { Storage } from '../utils/storage';
+import { requestNotificationPermission } from '../utils/notificationHelper';
+
+// ─────────────────────────────────────────────────────────────────────
+// Cấu hình: đóng/mở tự đăng ký tài khoản mới
+// Khi REGISTRATION_OPEN = false: chỉ admin mới thêm được thành viên
+// ─────────────────────────────────────────────────────────────────────
+const REGISTRATION_OPEN = false;
+const OTP_EXPIRY_SECONDS = 300; // 5 phút
 
 export function useAuth(triggerNotification) {
   const [currentUser, setCurrentUser] = useState(null);
@@ -8,6 +16,7 @@ export function useAuth(triggerNotification) {
   const [otpSent, setOtpSent] = useState(false);
   const [loginOtp, setLoginOtp] = useState('');
   const [simulatedOtp, setSimulatedOtp] = useState('');
+  const [otpExpiresAt, setOtpExpiresAt] = useState(null); // timestamp OTP hết hạn
   const [isRegistering, setIsRegistering] = useState(false);
   const [registerName, setRegisterName] = useState('');
   const [registerRole, setRegisterRole] = useState('member');
@@ -17,6 +26,9 @@ export function useAuth(triggerNotification) {
   const [personalPhone, setPersonalPhone] = useState('');
   const [isEditingPhone, setIsEditingPhone] = useState(false);
   const [isAvatarModalOpen, setIsAvatarModalOpen] = useState(false);
+
+  // Ref giữ OTP và thời hạn để kiểm tra chính xác khi verify
+  const otpRef = useRef({ code: '', expiresAt: 0 });
 
   // Load initial data
   const initUsers = useCallback(async () => {
@@ -66,15 +78,28 @@ export function useAuth(triggerNotification) {
     }
 
     const code = Math.floor(100000 + Math.random() * 900000).toString();
+    const expiresAt = Date.now() + OTP_EXPIRY_SECONDS * 1000;
+
+    // Lưu vào ref để kiểm tra không bị stale closure
+    otpRef.current = { code, expiresAt };
     setSimulatedOtp(code);
+    setOtpExpiresAt(expiresAt);
     setOtpSent(true);
+
     triggerNotification(`[OTP Đăng nhập] Mã xác thực của bạn là ${code}. Có hiệu lực trong 5 phút.`);
     return true;
   };
 
   const handleVerifyOtp = async (otp) => {
     setLoginError('');
-    if (otp !== simulatedOtp) {
+
+    // Kiểm tra OTP hết hạn chưa
+    if (Date.now() > otpRef.current.expiresAt) {
+      setLoginError('Mã OTP đã hết hạn! Vui lòng nhấn "Gửi lại mã" để nhận mã mới.');
+      return false;
+    }
+
+    if (otp !== otpRef.current.code) {
       setLoginError('Mã OTP không chính xác! Vui lòng kiểm tra lại thông báo ở đầu trang.');
       return false;
     }
@@ -88,7 +113,14 @@ export function useAuth(triggerNotification) {
       setCurrentUser(targetUser);
       await Storage.setLoggedInUser(targetUser);
       resetLoginStates();
+      // Xin quyền thông báo nổi hệ thống ngay khi đăng nhập thành công (chế độ im lặng)
+      setTimeout(() => requestNotificationPermission(true), 500);
     } else {
+      // Số điện thoại chưa đăng ký
+      if (!REGISTRATION_OPEN) {
+        setLoginError('Số điện thoại này chưa được đăng ký trong hệ thống. Vui lòng liên hệ quản trị viên để được thêm vào hệ thống.');
+        return false;
+      }
       setIsRegistering(true);
     }
     return true;
@@ -98,10 +130,19 @@ export function useAuth(triggerNotification) {
     setCurrentUser(selectedUser);
     await Storage.setLoggedInUser(selectedUser);
     resetLoginStates();
+    // Xin quyền thông báo nổi hệ thống khi chọn tài khoản (chế độ im lặng)
+    setTimeout(() => requestNotificationPermission(true), 500);
   };
 
   const handleRegister = async (name, role) => {
     setLoginError('');
+
+    // Kiểm tra lại đăng ký có được phép không
+    if (!REGISTRATION_OPEN) {
+      setLoginError('Đăng ký tự do đã bị tắt. Vui lòng liên hệ quản trị viên.');
+      return false;
+    }
+
     if (!name.trim()) {
       setLoginError('Vui lòng nhập họ và tên của bạn.');
       return false;
@@ -111,7 +152,7 @@ export function useAuth(triggerNotification) {
       const newUser = {
         name: name.trim(),
         phone: loginPhone,
-        role: role
+        role: 'member' // Tự đăng ký chỉ được role 'member'
       };
 
       const savedUser = await Storage.saveUser(newUser);
@@ -120,6 +161,8 @@ export function useAuth(triggerNotification) {
       setCurrentUser(savedUser);
       await Storage.setLoggedInUser(savedUser);
       resetLoginStates();
+      // Xin quyền thông báo nổi hệ thống khi hoàn tất đăng ký (chế độ im lặng)
+      setTimeout(() => requestNotificationPermission(true), 500);
       return true;
     } catch (err) {
       setLoginError(err.message || 'Có lỗi xảy ra khi tạo tài khoản.');
@@ -132,6 +175,8 @@ export function useAuth(triggerNotification) {
     setOtpSent(false);
     setLoginOtp('');
     setSimulatedOtp('');
+    setOtpExpiresAt(null);
+    otpRef.current = { code: '', expiresAt: 0 };
     setIsRegistering(false);
     setRegisterName('');
     setRegisterRole('member');
@@ -171,13 +216,18 @@ export function useAuth(triggerNotification) {
 
   const handleAddMember = async (name, phone, role) => {
     if (!name.trim()) return false;
-    await Storage.saveUser({
-      name: name.trim(),
-      phone: phone.trim(),
-      role: role
-    });
-    await initUsers();
-    return true;
+    try {
+      await Storage.saveUser({
+        name: name.trim(),
+        phone: phone.trim(),
+        role: role
+      });
+      await initUsers();
+      return true;
+    } catch (err) {
+      triggerNotification('[Lỗi] ' + (err.message || 'Không thể thêm thành viên.'));
+      return false;
+    }
   };
 
   const handleDeleteMember = async (userId) => {
@@ -185,9 +235,14 @@ export function useAuth(triggerNotification) {
       triggerNotification('[Lỗi] Không thể xóa chính bạn!');
       return false;
     }
-    await Storage.deleteUser(userId);
-    await initUsers();
-    return true;
+    try {
+      await Storage.deleteUser(userId);
+      await initUsers();
+      return true;
+    } catch (err) {
+      triggerNotification('[Lỗi] ' + (err.message || 'Không thể xóa thành viên.'));
+      return false;
+    }
   };
 
   const toggleUserRole = async (userId, newRole) => {
@@ -226,6 +281,7 @@ export function useAuth(triggerNotification) {
     loginOtp,
     setLoginOtp,
     simulatedOtp,
+    otpExpiresAt,
     isRegistering,
     setIsRegistering,
     registerName,
@@ -256,6 +312,7 @@ export function useAuth(triggerNotification) {
     handleDeleteMember,
     toggleUserRole,
     handleAvatarChange,
-    resetLoginStates
+    resetLoginStates,
+    REGISTRATION_OPEN
   };
 }

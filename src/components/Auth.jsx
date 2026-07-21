@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Phone, AlertCircle, ArrowRight, ShieldCheck, RefreshCw } from 'lucide-react';
 
-const logo = './assets/logo.png';
+import logo from '../assets/logo.png';
 
 export const Auth = React.memo(({
   loginPhone,
@@ -341,13 +341,6 @@ export const Auth = React.memo(({
             </button>
           </form>
         )}
-
-        <div className="login-tips">
-          <span className="tips-title">💡 Gợi ý thử nghiệm nhanh:</span>
-          <p>• Nhập <strong>0912345678</strong>: Đăng nhập vai Quản lý (Nguyễn Văn A).</p>
-          <p>• Nhập <strong>0987654321</strong>: Chọn vai Trần Thị B (Ủy quyền hoặc Thành viên).</p>
-          <p>• Nhập số điện thoại bất kỳ khác: Trải nghiệm tự động đăng ký tài khoản mới.</p>
-        </div>
       </div>
     </div>
   );

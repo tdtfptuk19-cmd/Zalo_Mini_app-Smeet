@@ -1,5 +1,7 @@
-import React, { useState } from 'react';
-import { Settings, LogOut, Trash2, CheckCircle, Save, Plus, Camera, Send } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Settings, LogOut, Trash2, CheckCircle, Save, Plus, Camera, Send, Bell, Server } from 'lucide-react';
+import { Storage, getApiBase } from '../utils/storage';
+import { requestNotificationPermission, getNotificationPermission } from '../utils/notificationHelper';
 
 export const SettingsDrawer = React.memo(({
   isOpen,
@@ -35,13 +37,49 @@ export const SettingsDrawer = React.memo(({
 
   // Local states for Admin's SMS gateway form
   const [smsProvider, setSmsProvider] = useState('esms');
-  const [notifEnabled, setNotifEnabled] = useState(true);
+  const [notifEnabled, setNotifEnabled] = useState(false);
+  const [isSavingNotif, setIsSavingNotif] = useState(false);
+
+  // Load cấu hình thông báo từ API khi Drawer mở
+  useEffect(() => {
+    if (isOpen && currentUser?.role === 'admin') {
+      Storage.getNotifConfig().then(config => {
+        if (config) {
+          setSmsProvider(config.smsProvider || 'esms');
+          setNotifEnabled(config.notifEnabled ?? false);
+        }
+      }).catch(err => {
+        console.warn('Could not load notif config:', err);
+      });
+    }
+  }, [isOpen, currentUser?.role]);
 
   // Local states for bug reporting
   const [bugTitle, setBugTitle] = useState('');
   const [bugContent, setBugContent] = useState('');
   const [bugCategory, setBugCategory] = useState('ui');
   const [isSubmittingBug, setIsSubmittingBug] = useState(false);
+
+  // Local state for custom backend URL configuration
+  const [customServerUrl, setCustomServerUrl] = useState(() => localStorage.getItem('zmp_custom_api_url') || '');
+  const [testingConnection, setTestingConnection] = useState(false);
+  const [testResult, setTestResult] = useState(null);
+
+  const handleSaveServerUrl = async () => {
+    const trimmed = customServerUrl.trim();
+    if (trimmed) {
+      localStorage.setItem('zmp_custom_api_url', trimmed);
+      triggerNotification('[Hệ thống] Đã cập nhật địa chỉ Backend Server mới.');
+    } else {
+      localStorage.removeItem('zmp_custom_api_url');
+      triggerNotification('[Hệ thống] Đã khôi phục cấu hình máy chủ mặc định.');
+    }
+    setTestingConnection(true);
+    setTestResult(null);
+    const res = await Storage.testConnection(trimmed);
+    setTestingConnection(false);
+    setTestResult(res);
+  };
 
   const t = (vi, en) => {
     return appLanguage === 'vi' ? vi : en;
@@ -81,10 +119,17 @@ export const SettingsDrawer = React.memo(({
     }
   };
 
-  const onLocalSmsSubmit = (e) => {
+  const onLocalSmsSubmit = async (e) => {
     e.preventDefault();
-    triggerNotification('[Hệ thống] Đã lưu cấu hình thông báo & nhà cung cấp!');
-    triggerNotification(`[Hệ thống] Lưu thành công cấu hình cổng thông báo: ${smsProvider.toUpperCase()}`);
+    setIsSavingNotif(true);
+    try {
+      await Storage.saveNotifConfig({ smsProvider, notifEnabled });
+      triggerNotification(`[Hệ thống] Đã lưu cấu hình thông báo: ${smsProvider.toUpperCase()} – ${notifEnabled ? 'Bật' : 'Tắt'}`);
+    } catch (err) {
+      triggerNotification('[Lỗi] ' + (err.message || 'Không thể lưu cấu hình thông báo.'));
+    } finally {
+      setIsSavingNotif(false);
+    }
   };
 
   const onLocalBugSubmit = (e) => {
@@ -116,7 +161,7 @@ export const SettingsDrawer = React.memo(({
         {/* Drawer Header */}
         <div className="modal-header settings-drawer-header">
           <h3 className="drawer-title">
-            <Settings size={20} color="var(--primary-color)" />
+            <Settings size={22} color="var(--primary-color)" />
             <span>{t('Cài Đặt & Cấu Hình', 'Settings & Configurations')}</span>
           </h3>
           <button onClick={onClose} className="drawer-close-btn">&times;</button>
@@ -254,6 +299,100 @@ export const SettingsDrawer = React.memo(({
                   <option value="vi">Tiếng Việt</option>
                   <option value="en">English</option>
                 </select>
+              </div>
+
+              {/* System Floating Push Notification section */}
+              <div className="settings-control-row" style={{ marginTop: '12px', paddingTop: '12px', borderTop: '1px dashed var(--border-color, #e5e7eb)', flexDirection: 'column', alignItems: 'flex-start', gap: '8px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%', alignItems: 'center' }}>
+                  <span style={{ display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 600 }}>
+                    <Bell size={16} color="#0068FF" />
+                    Thông Báo Nổi (Mobile & PC)
+                  </span>
+                  <span style={{ fontSize: '0.78rem', color: getNotificationPermission() === 'granted' ? '#10b981' : getNotificationPermission() === 'denied' ? '#ef4444' : '#6b7280', fontWeight: 600 }}>
+                    {getNotificationPermission() === 'granted' ? '✓ Đã bật' : getNotificationPermission() === 'denied' ? '❌ Đã chặn' : getNotificationPermission() === 'unsupported' ? '⚠️ Dùng thông báo trong App' : 'Chưa bật'}
+                  </span>
+                </div>
+                <p style={{ fontSize: '0.78rem', color: 'var(--text-muted, #6b7280)', margin: 0 }}>
+                  {getNotificationPermission() === 'unsupported'
+                    ? 'Trình duyệt/WebView Zalo không hỗ trợ HTML5 Web Notification API. Ứng dụng tự động dùng thông báo Toast trong App.'
+                    : 'Gửi thông báo nổi trên điện thoại và máy tính đúng 24h & 30m trước khi cuộc họp diễn ra.'}
+                </p>
+                {getNotificationPermission() !== 'granted' && getNotificationPermission() !== 'unsupported' && (
+                  <button
+                    type="button"
+                    className="btn btn-primary"
+                    style={{ fontSize: '0.8rem', padding: '6px 12px', width: '100%', marginTop: '4px' }}
+                    onClick={async () => {
+                      const granted = await requestNotificationPermission(false);
+                      if (granted) {
+                        triggerNotification('[Hệ thống] Đã bật quyền thông báo nổi thành công!');
+                      }
+                    }}
+                  >
+                    Bật Thông Báo Nổi Ngay
+                  </button>
+                )}
+              </div>
+
+              {/* Backend API Connection Configuration Section */}
+              <div className="settings-section server-connection-section" style={{ marginTop: '14px', paddingTop: '12px', borderTop: '1px dashed var(--border-color, #e5e7eb)' }}>
+                <span className="section-subtitle" style={{ display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 600 }}>
+                  <Server size={16} color="var(--primary-color)" />
+                  Kết Nối Máy Chủ Backend API
+                </span>
+                <p style={{ fontSize: '0.78rem', color: 'var(--text-muted, #6b7280)', marginTop: '4px', marginBottom: '8px' }}>
+                  Địa chỉ Backend hiện tại: <code style={{ background: 'rgba(0,0,0,0.06)', padding: '2px 6px', borderRadius: '4px', wordBreak: 'break-all' }}>{getApiBase() || '(Relative Proxy)'}</code>
+                </p>
+                <div className="form-group" style={{ marginBottom: '8px' }}>
+                  <label htmlFor="setting-custom-url" style={{ fontSize: '0.78rem' }}>Đường dẫn Backend custom (dành cho QR code / LAN):</label>
+                  <input
+                    id="setting-custom-url"
+                    type="url"
+                    value={customServerUrl}
+                    onChange={(e) => setCustomServerUrl(e.target.value)}
+                    className="input-text input-mini"
+                    placeholder="VD: http://192.168.1.15:5000 hoặc https://your-domain.com"
+                  />
+                </div>
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  <button
+                    type="button"
+                    onClick={handleSaveServerUrl}
+                    className="btn btn-primary"
+                    style={{ fontSize: '0.78rem', padding: '6px 12px', flex: 2 }}
+                    disabled={testingConnection}
+                  >
+                    {testingConnection ? 'Đang kết nối...' : 'Lưu & Kiểm tra kết nối'}
+                  </button>
+                  {customServerUrl && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setCustomServerUrl('');
+                        localStorage.removeItem('zmp_custom_api_url');
+                        setTestResult(null);
+                        triggerNotification('[Hệ thống] Đã xóa cấu hình Server custom.');
+                      }}
+                      className="btn btn-secondary"
+                      style={{ fontSize: '0.78rem', padding: '6px 10px', flex: 1 }}
+                    >
+                      Mặc định
+                    </button>
+                  )}
+                </div>
+                {testResult && (
+                  <div style={{
+                    marginTop: '8px',
+                    padding: '8px 10px',
+                    borderRadius: '8px',
+                    fontSize: '0.78rem',
+                    background: testResult.success ? 'rgba(16, 185, 129, 0.1)' : 'rgba(239, 68, 68, 0.1)',
+                    color: testResult.success ? '#10b981' : '#ef4444',
+                    border: `1px solid ${testResult.success ? 'rgba(16, 185, 129, 0.3)' : 'rgba(239, 68, 68, 0.3)'}`
+                  }}>
+                    {testResult.message}
+                  </div>
+                )}
               </div>
             </div>
 
@@ -433,9 +572,9 @@ export const SettingsDrawer = React.memo(({
                     </select>
                   </div>
 
-                  <button type="submit" className="btn btn-secondary btn-save-sms-config">
+                  <button type="submit" className="btn btn-secondary btn-save-sms-config" disabled={isSavingNotif}>
                     <Save size={14} />
-                    <span>Lưu cổng thông báo</span>
+                    <span>{isSavingNotif ? 'Đang lưu...' : 'Lưu cổng thông báo'}</span>
                   </button>
                 </form>
               </div>

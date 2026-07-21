@@ -1,0 +1,16 @@
+{
+  "short_name": "Smeet",
+  "name": "Smeet - Quản Lý Lịch Họp Nhóm",
+  "icons": [
+    {
+      "src": "assets/logo.png",
+      "sizes": "192x192 512x512",
+      "type": "image/png"
+    }
+  ],
+  "start_url": ".",
+  "display": "standalone",
+  "theme_color": "#0068FF",
+  "background_color": "#0068FF",
+  "description": "Ứng dụng quản lý lịch họp nhóm, tích hợp Google Meet, ghi chú và tự động nhắc nhở lịch họp."
+}

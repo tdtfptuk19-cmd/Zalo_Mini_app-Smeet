@@ -1,10 +1,14 @@
-// Storage Client Adapter to communicate with the Node.js Backend Server
-
-
+// Storage Client Adapter to communicate directly with the Node.js / Vercel Backend Server
 
 // Dynamic API Base URL detection
-const getApiBase = () => {
+export const getApiBase = () => {
   if (typeof window === 'undefined') return '';
+  
+  // Custom API URL set in settings drawer takes top priority
+  const customUrl = window.localStorage.getItem('zmp_custom_api_url');
+  if (customUrl && customUrl.trim()) {
+    return customUrl.trim().replace(/\/+$/, '');
+  }
   
   const hostname = window.location.hostname;
   
@@ -13,26 +17,49 @@ const getApiBase = () => {
     return ''; // Uses relative URL via Vite development proxy
   }
   
-  // If running on a real mobile device scanning QR code, 
-  // localhost won't work. We need the developer's computer IP or public URL.
-  // We can let them define it via environment variable or default.
+  // If running on a real mobile device scanning QR code,
   // We read Vite's environment variable VITE_API_URL if set.
   if (import.meta.env && import.meta.env.VITE_API_URL) {
-    return import.meta.env.VITE_API_URL;
+    return import.meta.env.VITE_API_URL.replace(/\/+$/, '');
   }
   
-  // Fallback default (replace this with your computer's IP address if testing on a real phone, e.g. 'http://192.168.1.5:5000')
   return 'http://localhost:5000';
 };
 
-const API_BASE = getApiBase();
+// Auth header helper: inject x-user-id from localStorage session
+const getAuthHeaders = () => {
+  try {
+    const userJson = window.localStorage.getItem('zmp_logged_in_user');
+    if (userJson) {
+      const user = JSON.parse(userJson);
+      if (user && user.id) {
+        return { 'x-user-id': user.id };
+      }
+    }
+  } catch {
+    // ignore
+  }
+  return {};
+};
 
-// Safe Fetch Wrapper to handle connection errors and empty/malformed responses
+// Safe Fetch Wrapper: Handles network & HTTP error formatting
 const safeFetch = async (url, options = {}) => {
   try {
-    const res = await fetch(url, options);
+    const isAuthRoute = url.includes('/api/auth/');
+    const authHeaders = isAuthRoute ? {} : getAuthHeaders();
+
+    const mergedOptions = {
+      ...options,
+      headers: {
+        'Content-Type': 'application/json',
+        ...authHeaders,
+        ...(options.headers || {})
+      }
+    };
+
+    const res = await fetch(url, mergedOptions);
     if (!res.ok) {
-      let errMsg = `Server returned status ${res.status}`;
+      let errMsg = `Server status ${res.status}`;
       try {
         const errData = await res.json();
         errMsg = errData.error || errData.message || errMsg;
@@ -41,165 +68,185 @@ const safeFetch = async (url, options = {}) => {
     }
     return res;
   } catch (e) {
-    // If it's already a formatted error, rethrow it
-    if (e.message && (e.message.includes('Trùng lịch') || e.message.includes('Không có ghi chú'))) {
+    if (e.message && (
+      e.message.includes('Trùng') ||
+      e.message.includes('Không có ghi chú') ||
+      e.message.includes('Chỉ') ||
+      e.message.includes('Không có quyền') ||
+      e.message.includes('Unauthorized') ||
+      e.message.includes('Server status')
+    )) {
       throw e;
     }
-    console.error("Network error calling API:", e);
-    throw new Error("Không thể kết nối với Backend Server. Hãy chắc chắn rằng bạn đã khởi động backend bằng lệnh 'node server/server.js' ở cửa sổ terminal thứ hai!");
+    console.error("Network error calling Live API:", e);
+    throw new Error("Không thể kết nối đến Backend Server trên Vercel. Vui lòng kiểm tra lại đường dẫn VITE_API_URL hoặc kết nối mạng.");
   }
 };
 
 export const Storage = {
-  // Users APIs
+  // ─── Users APIs ───
   getUsers: async () => {
-    const res = await safeFetch(`${API_BASE}/api/users`);
+    const res = await safeFetch(`${getApiBase()}/api/users`);
     return res.json();
   },
   
   saveUser: async (user) => {
-    const res = await safeFetch(`${API_BASE}/api/users`, {
+    const res = await safeFetch(`${getApiBase()}/api/users`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(user)
     });
     return res.json();
   },
   
   deleteUser: async (id) => {
-    await safeFetch(`${API_BASE}/api/users/${id}`, {
+    await safeFetch(`${getApiBase()}/api/users/${id}`, {
       method: 'DELETE'
     });
   },
 
-  // Authentication via Zalo
+  // ─── Authentication via Zalo ───
   authenticateZalo: async (zaloUserInfo) => {
-    const res = await safeFetch(`${API_BASE}/api/auth/zalo`, {
+    const res = await safeFetch(`${getApiBase()}/api/auth/zalo`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(zaloUserInfo)
     });
     return res.json();
   },
 
-  // Meetings APIs
+  // ─── Meetings APIs ───
   getMeetings: async () => {
-    const res = await safeFetch(`${API_BASE}/api/meetings`);
+    const res = await safeFetch(`${getApiBase()}/api/meetings`);
     return res.json();
   },
   
   saveMeeting: async (meeting) => {
-    const res = await safeFetch(`${API_BASE}/api/meetings`, {
+    const res = await safeFetch(`${getApiBase()}/api/meetings`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(meeting)
     });
     return res.json();
   },
   
   deleteMeeting: async (id) => {
-    await safeFetch(`${API_BASE}/api/meetings/${id}`, {
+    await safeFetch(`${getApiBase()}/api/meetings/${id}`, {
       method: 'DELETE'
     });
   },
-  
-  checkConflict: async (meeting) => {
-    // Check overlap locally using the fetched meetings from server
-    try {
-      const meetings = await Storage.getMeetings();
-      const newStart = new Date(meeting.startTime).getTime();
-      const newEnd = new Date(meeting.endTime).getTime();
 
-      return meetings.find(m => {
-        if (meeting.id && m.id === meeting.id) return false;
-        if (m.status === 'canceled') return false; // Ignore canceled meetings
-        const mStart = new Date(m.startTime).getTime();
-        const mEnd = new Date(m.endTime).getTime();
-        return (newStart < mEnd && newEnd > mStart);
-      });
-    } catch {
-      return null;
-    }
+  updateMeetingStatus: async (meetingId, status) => {
+    const res = await safeFetch(`${getApiBase()}/api/meetings/${meetingId}/status`, {
+      method: 'PATCH',
+      body: JSON.stringify({ status })
+    });
+    return res.json();
   },
 
-  // Notes APIs
+  // ─── Notes APIs ───
   getNotes: async (meetingId) => {
-    const res = await safeFetch(`${API_BASE}/api/meetings/${meetingId}/notes`);
+    const res = await safeFetch(`${getApiBase()}/api/meetings/${meetingId}/notes`);
     return res.json();
   },
   
   saveNote: async (meetingId, userId, content) => {
-    await safeFetch(`${API_BASE}/api/meetings/${meetingId}/notes`, {
+    await safeFetch(`${getApiBase()}/api/meetings/${meetingId}/notes`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ userId, content })
     });
   },
 
-  // Polls APIs
+  // ─── Polls APIs ───
   getPolls: async (meetingId) => {
-    const res = await safeFetch(`${API_BASE}/api/meetings/${meetingId}/polls`);
+    const res = await safeFetch(`${getApiBase()}/api/meetings/${meetingId}/polls`);
     return res.json();
   },
   
   savePoll: async (poll) => {
-    const res = await safeFetch(`${API_BASE}/api/meetings/${poll.meetingId}/polls`, {
+    const res = await safeFetch(`${getApiBase()}/api/meetings/${poll.meetingId}/polls`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(poll)
     });
     return res.json();
   },
   
-  submitAnswer: async (pollId, userId, optionId) => {
-    const res = await safeFetch(`${API_BASE}/api/meetings/any/polls/${pollId}/vote`, {
+  deletePoll: async (meetingId, pollId) => {
+    await safeFetch(`${getApiBase()}/api/meetings/${meetingId}/polls/${pollId}`, {
+      method: 'DELETE'
+    });
+  },
+
+  submitAnswer: async (meetingId, pollId, userId, optionId) => {
+    const res = await safeFetch(`${getApiBase()}/api/meetings/${meetingId}/polls/${pollId}/vote`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ userId, optionId })
     });
     return res.json();
   },
 
-  // Reports APIs
+  // ─── Reports APIs ───
   getReports: async () => {
-    const res = await safeFetch(`${API_BASE}/api/reports`);
+    const res = await safeFetch(`${getApiBase()}/api/reports`);
     return res.json();
   },
   
   saveReport: async (report) => {
-    const res = await safeFetch(`${API_BASE}/api/reports`, {
+    const res = await safeFetch(`${getApiBase()}/api/reports`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(report)
     });
     return res.json();
   },
   
+  deleteReport: async (id) => {
+    await safeFetch(`${getApiBase()}/api/reports/${id}`, {
+      method: 'DELETE'
+    });
+  },
+  
   // Gemini AI Report Generation API
   generateReport: async (meetingId, options = {}) => {
-    const res = await safeFetch(`${API_BASE}/api/meetings/${meetingId}/generate-report`, {
+    const res = await safeFetch(`${getApiBase()}/api/meetings/${meetingId}/generate-report`, {
       method: 'POST',
       ...options
     });
     return res.json();
   },
 
-  // Notification Config APIs
+  // ─── Notification Config APIs ───
   getNotifConfig: async () => {
-    const res = await safeFetch(`${API_BASE}/api/notif-config`);
+    const res = await safeFetch(`${getApiBase()}/api/notif-config`);
     return res.json();
   },
   
   saveNotifConfig: async (config) => {
-    const res = await safeFetch(`${API_BASE}/api/notif-config`, {
+    const res = await safeFetch(`${getApiBase()}/api/notif-config`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(config)
     });
     return res.json();
   },
 
-  // Session / Logged In User APIs (kept local to browser/webview)
+  // ─── Dashboard API ───
+  getDashboard: async () => {
+    const res = await safeFetch(`${getApiBase()}/api/dashboard`);
+    return res.json();
+  },
+
+  // Test Server Connection
+  testConnection: async (customUrl) => {
+    const target = (customUrl || getApiBase()).replace(/\/+$/, '');
+    try {
+      const res = await fetch(`${target}/api/health`, { method: 'GET' });
+      if (res.ok) {
+        const data = await res.json();
+        return { success: true, message: `Kết nối thành công đến Backend Server Vercel! (${data.service || 'Smeet Backend'})` };
+      }
+      return { success: false, message: `Server phản hồi mã lỗi HTTP ${res.status}` };
+    } catch (err) {
+      return { success: false, message: `Không thể kết nối đến ${target}. Vui lòng kiểm tra lại URL Vercel.` };
+    }
+  },
+
+  // ─── Session / Logged In User ───
   getLoggedInUser: async () => {
     const userJson = window.localStorage.getItem('zmp_logged_in_user');
     return userJson ? JSON.parse(userJson) : null;

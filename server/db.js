@@ -21,10 +21,10 @@ const getTomorrowAtTime = (hours, minutes) => {
 
 const SEED_USERS = [
   { id: 'u1', name: 'Nguyễn Văn A', phone: '0912345678', role: 'admin', avatar: ZALO_DEFAULT_AVATAR },
-  { id: 'u2', name: 'Trần Thị B (Ủy quyền)', phone: '0987654321', role: 'delegated', avatar: ZALO_DEFAULT_AVATAR, defaultMeet: 'https://meet.google.com/abc-defg-hij' },
-  { id: 'u2_member', name: 'Trần Thị B (Thành viên)', phone: '0987654321', role: 'member', avatar: ZALO_DEFAULT_AVATAR },
+  { id: 'u2', name: 'Trần Thị B', phone: '0987654321', role: 'delegated', avatar: ZALO_DEFAULT_AVATAR, defaultMeet: 'https://meet.google.com/abc-defg-hij' },
   { id: 'u3', name: 'Lê Văn C', phone: '0901234567', role: 'member', avatar: ZALO_DEFAULT_AVATAR },
-  { id: 'u4', name: 'Phạm Văn D', phone: '0934567890', role: 'member', avatar: ZALO_DEFAULT_AVATAR }
+  { id: 'u4', name: 'Phạm Văn D', phone: '0934567890', role: 'member', avatar: ZALO_DEFAULT_AVATAR },
+  { id: 'u5', name: 'Hoàng Thị E', phone: '0971234567', role: 'member', avatar: ZALO_DEFAULT_AVATAR }
 ];
 
 const SEED_MEETINGS = [
@@ -114,7 +114,7 @@ const SEED_POLLS = [
 const SEED_REPORTS = [
   {
     id: 'r1',
-    meetingId: 'm0',
+    meetingId: 'm1',
     title: 'Họp Lập Kế Hoạch Dự Án Tuần 27',
     summaryContent: `**BIÊN BẢN CUỘC HỌP CHÍNH THỨC**\n*Thời gian:* 09:00 - 10:00, Ngày 03/07/2026\n\n**1. Các quyết định đã thống nhất:**\n- Thống nhất phát triển ứng dụng dưới dạng Zalo Mini App sử dụng React Vite.\n- Thiết kế giao diện theo tông màu chủ đạo Trắng, Xanh dương Zalo, và các điểm nhấn Đỏ cảnh báo. Các nút và hộp nhập liệu bo tròn góc 12px-16px.\n\n**2. Phân công công việc:**\n- **Nguyễn Văn A:** Thiết lập cấu hình Zalo Developer Console và tích hợp App ID.\n- **Trần Thị B:** Nghiên cứu dịch vụ SMS Gateway (eSMS) và tích hợp API Google Meet.\n- **Lê Văn C & Phạm Văn D:** Phác thảo UI/UX các màn hình chính (Calendar, Meeting Interaction).\n\n**3. Vấn đề thảo luận thêm:**\n- Sẽ khảo sát ý kiến nhóm về chi phí gửi tin nhắn ZNS của Zalo OA so với tin nhắn SMS truyền thống.`,
     status: 'published',
@@ -174,19 +174,39 @@ const seedDatabase = async () => {
   }
 };
 
+let cachedPromise = null;
+
 export const db = {
   connect: async () => {
-    const mongoUri = process.env.MONGODB_URI || 'mongodb://localhost:27017/smeet_db';
-    try {
-      console.log('[DB] Connecting to MongoDB...');
-      await mongoose.connect(mongoUri);
-      console.log('[DB] MongoDB connected successfully');
-      
-      // Auto-seed if collections are empty
-      await seedDatabase();
-    } catch (err) {
-      console.error('[DB] MongoDB connection error:', err);
-      process.exit(1);
+    const mongoUri = process.env.MONGODB_URI || 'mongodb://127.0.0.1:27017/smeet_db';
+    
+    // Nếu Mongoose đã kết nối (readyState === 1), tái sử dụng connection ngay lập tức
+    if (mongoose.connection.readyState === 1) {
+      return mongoose.connection;
     }
+
+    if (!cachedPromise) {
+      const opts = {
+        bufferCommands: false, // Tránh treo query 10 giây khi mất kết nối DB
+        serverSelectionTimeoutMS: 5000, // Thất bại nhanh sau 5s thay vì 10s
+      };
+
+      console.log('[DB] Connecting to MongoDB...');
+      cachedPromise = mongoose.connect(mongoUri, opts).then(async (m) => {
+        console.log('[DB] MongoDB connected successfully');
+        try {
+          await seedDatabase();
+        } catch (e) {
+          console.error('[DB] Seeding error:', e.message);
+        }
+        return m;
+      }).catch((err) => {
+        cachedPromise = null;
+        console.error('[DB] MongoDB connection error:', err.message);
+        throw err;
+      });
+    }
+
+    return cachedPromise;
   }
 };

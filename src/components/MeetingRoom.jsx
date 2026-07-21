@@ -32,8 +32,10 @@ export const MeetingRoom = React.memo(({
   setNewPollOptions,
   handleVote,
   handleAddPoll,
+  handleDeletePoll,
   syncMeetingData,
   setupRealtimePolls,
+  handleCompleteMeeting,
   
   // AI Report states & functions
   generatingAI,
@@ -441,14 +443,8 @@ export const MeetingRoom = React.memo(({
                             type="button"
                             onClick={async (e) => {
                               e.stopPropagation();
-                              if (window.confirm('Bạn có chắc chắn muốn xóa khảo sát này?')) {
-                                try {
-                                  await fetch(`/api/meetings/${activeMeeting.id}/polls/${poll.id}`, { method: 'DELETE' });
-                                  syncMeetingData(activeMeeting.id, currentUser.id);
-                                  triggerNotification('[Hệ thống] Đã xóa khảo sát thành công.');
-                                } catch (err) {
-                                  console.error(err);
-                                }
+                              if (handleDeletePoll) {
+                                await handleDeletePoll(poll.id);
                               }
                             }}
                             className="btn btn-danger"
@@ -671,14 +667,8 @@ export const MeetingRoom = React.memo(({
                             type="button"
                             onClick={async (e) => {
                               e.stopPropagation();
-                              if (window.confirm('Bạn có chắc chắn muốn xóa khảo sát này?')) {
-                                try {
-                                  await fetch(`/api/meetings/${activeMeeting.id}/polls/${poll.id}`, { method: 'DELETE' });
-                                  syncMeetingData(activeMeeting.id, currentUser.id);
-                                  triggerNotification('[Hệ thống] Đã xóa khảo sát thành công.');
-                                } catch (err) {
-                                  console.error(err);
-                                }
+                              if (handleDeletePoll) {
+                                await handleDeletePoll(poll.id);
                               }
                             }}
                             className="btn btn-danger"

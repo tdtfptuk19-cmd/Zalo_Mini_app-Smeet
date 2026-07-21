@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { Video, MapPin, Phone, Edit, ArrowRight, Plus, Calendar, X, Zap } from 'lucide-react';
+import { Video, MapPin, Phone, Edit, ArrowRight, Plus, Calendar, X, Zap, BellPlus } from 'lucide-react';
+import { generateGoogleCalendarUrl, downloadIcsFile } from '../utils/calendarHelper';
 
 export const MeetingList = React.memo(({
   selectedDate,
@@ -130,6 +131,23 @@ export const MeetingList = React.memo(({
           </div>
           
           <div className="meeting-card-actions" style={{ paddingRight: isCreator ? '18px' : '0' }}>
+            {!isCanceled && !isPast && (
+              <div style={{ display: 'flex', gap: '4px' }}>
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  style={{ fontSize: '0.75rem', padding: '4px 8px', background: 'rgba(0, 104, 255, 0.08)', color: '#0068FF', border: '1px solid rgba(0, 104, 255, 0.2)' }}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    downloadIcsFile(meeting);
+                  }}
+                  title="Tải file lịch .ics (Apple/Google/Samsung Calendar) với 2 mốc nhắc nhở tự động (24h & 30m)"
+                >
+                  <BellPlus size={13} style={{ marginRight: '3px' }} />
+                  Nhắc Lịch
+                </button>
+              </div>
+            )}
             {isCreator && !isCanceled && (
               <button 
                 onClick={() => openEditMeetingForm(meeting)} 

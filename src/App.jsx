@@ -7,9 +7,11 @@ import { useAuth } from './hooks/useAuth';
 import { useMeetings } from './hooks/useMeetings';
 import { useMeetingRoom } from './hooks/useMeetingRoom';
 
-// Sub-components
+import { SplashScreen } from './components/SplashScreen';
+import { requestNotificationPermission } from './utils/notificationHelper';
 import { NotificationSim } from './components/NotificationSim';
 import { Auth } from './components/Auth';
+import { Dashboard } from './components/Dashboard';
 import { CalendarView } from './components/CalendarView';
 import { MeetingList } from './components/MeetingList';
 import { MeetingFormModal } from './components/MeetingFormModal';
@@ -17,13 +19,21 @@ import { QuickMeetingModal } from './components/QuickMeetingModal';
 import { MeetingRoom } from './components/MeetingRoom';
 import { SettingsDrawer } from './components/SettingsDrawer';
 
-const logo = './assets/logo.png';
+import logo from './assets/logo.png';
+
+// Cache key để lưu session nhanh vào localStorage
+const SPLASH_SHOWN_KEY = 'smeet_splash_shown';
 
 function App() {
-  // Navigation tabs
-  const [activeTab, setActiveTab] = useState('calendar'); // calendar, meeting, reports, settings
+  // Navigation tabs: dashboard, calendar, meeting, reports
+  const [activeTab, setActiveTab] = useState('dashboard');
   const [activeMeeting, setActiveMeeting] = useState(null);
   const [reports, setReports] = useState([]);
+
+  // Splash screen: chỉ hiển thị lần đầu mỗi session
+  const [showSplash, setShowSplash] = useState(() => {
+    return !sessionStorage.getItem(SPLASH_SHOWN_KEY);
+  });
 
   // Theme, scale & translation states
   const [isDarkMode, setIsDarkMode] = useState(false);
@@ -85,12 +95,16 @@ function App() {
   }, [appFontSize]);
 
   // 3. Initial load sync (including Zalo SDK login checks and deep-linking)
+  // Chạy ngay – không đợi splash – để data sẵn sàng khi splash kết thúc
   useEffect(() => {
     const initData = async () => {
-      // Load user list
-      await auth.initUsers();
+      // Bước 1: Load user list và session cũ SONG SONG (nhanh hơn)
+      const [, sessionUser0] = await Promise.all([
+        auth.initUsers(),
+        Storage.getLoggedInUser()
+      ]);
       
-      let sessionUser = await Storage.getLoggedInUser();
+      let sessionUser = sessionUser0;
       const ZALO_DEFAULT_AVATAR = 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgMTAwIj48Y2lyY2xlIGN4PSI1MCIgY3k9IjUwIiByPSI1MCIgZmlsbD0iI0U2RjBGRiIvPjxjaXJjbGUgY3g9IjUwIiBjeT0iMzgiIHI9IjE4IiBmaWxsPSIjMDA2OEZGIi8+PHBhdGggZD0iTTUwIDYwYy0xOCAwLTMwIDgtMzAgMTh2NGg2MHYtNGMwLTEwLTEyLTE4LTMwLTE4eiIgZmlsbD0iIzAwNjhGRiIvPjwvc3ZnPg==';
       
       if (sessionUser && sessionUser.avatar && sessionUser.avatar.includes('unsplash.com')) {
@@ -98,7 +112,18 @@ function App() {
         await Storage.setLoggedInUser(sessionUser);
       }
       
-      // Auto Zalo login attempt
+      // Bước 2: Hiển thị user cached ngay (trước khi Zalo auth xong)
+      if (sessionUser) {
+        auth.setCurrentUser(sessionUser);
+      }
+      
+      // Bước 3: Load meetings và reports SONG SONG
+      const [loadedMeetings] = await Promise.all([
+        meetings.refreshMeetings(),
+        refreshReports()
+      ]);
+      
+      // Bước 4: Auto Zalo login attempt (chạy sau để không block UI)
       try {
         await authorize({ scopes: ["scope.userInfo"] });
         const res = await getUserInfo({});
@@ -115,24 +140,22 @@ function App() {
             await Storage.setLoggedInUser(authenticatedUser);
           }
           await auth.initUsers();
+          auth.setCurrentUser(authenticatedUser || sessionUser);
         }
       } catch (err) {
         console.warn("Failed to fetch Zalo user info, using mock fallback:", err);
+        // Nếu Zalo auth fail, vẫn dùng session cũ
+        if (!sessionUser) {
+          auth.setCurrentUser(null);
+        }
       }
       
+      // Nếu có user đã đăng nhập, tự động gợi ý xin quyền thông báo nổi (chế độ im lặng nếu unsupported)
       if (sessionUser) {
-        auth.setCurrentUser(sessionUser);
-      } else {
-        auth.setCurrentUser(null);
+        setTimeout(() => requestNotificationPermission(true), 1200);
       }
       
-      // Load meetings list
-      const loadedMeetings = await meetings.refreshMeetings();
-      
-      // Load reports archive
-      await refreshReports();
-      
-      // Deep-linking checks
+      // Bước 5: Deep-linking checks
       const params = new URLSearchParams(window.location.search);
       const meetingIdParam = params.get('meetingId');
       if (meetingIdParam && sessionUser) {
@@ -181,6 +204,16 @@ function App() {
 
   return (
     <div className={`app-container font-${appFontSize} ${isDarkMode ? 'dark-theme' : ''}`}>
+      {/* Splash Screen – chỉ hiện lần đầu mỗi session */}
+      {showSplash && (
+        <SplashScreen
+          onDone={() => {
+            sessionStorage.setItem(SPLASH_SHOWN_KEY, '1');
+            setShowSplash(false);
+          }}
+        />
+      )}
+
       {/* Toast Notification Simulation */}
       <NotificationSim message={simulatedNotif} />
 
@@ -242,6 +275,12 @@ function App() {
             {/* Navigation Tabs */}
             <div className="nav-tabs">
               <button 
+                className={`nav-tab ${activeTab === 'dashboard' ? 'active' : ''}`}
+                onClick={() => switchTab('dashboard')}
+              >
+                {t('Tổng quan', 'Dashboard')}
+              </button>
+              <button 
                 className={`nav-tab ${activeTab === 'calendar' ? 'active' : ''}`}
                 onClick={() => switchTab('calendar')}
               >
@@ -264,7 +303,15 @@ function App() {
 
           {/* Main workspace scroll view */}
           <main className="app-content">
-            
+
+            {/* Tab 0: Dashboard Tổng quan */}
+            {activeTab === 'dashboard' && (
+              <Dashboard
+                currentUser={auth.currentUser}
+                onEnterMeeting={onEnterMeetingRoomFromList}
+                onOpenCreateMeeting={() => meetings.setIsMeetingModalOpen(true)}
+              />
+            )}
             {/* Tab 1: Calendar Scheduling view */}
             {activeTab === 'calendar' && (
               <>
@@ -319,8 +366,10 @@ function App() {
                 setNewPollOptions={meetingRoom.setNewPollOptions}
                 handleVote={meetingRoom.handleVote}
                 handleAddPoll={meetingRoom.handleAddPoll}
+                handleDeletePoll={meetingRoom.handleDeletePoll}
                 syncMeetingData={meetingRoom.syncMeetingData}
                 setupRealtimePolls={meetingRoom.setupRealtimePolls}
+                handleCompleteMeeting={meetings.handleCompleteMeeting}
                 
                 generatingAI={meetingRoom.generatingAI}
                 aiReportOutput={meetingRoom.aiReportOutput}

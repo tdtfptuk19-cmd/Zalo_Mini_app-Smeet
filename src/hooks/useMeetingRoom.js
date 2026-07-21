@@ -151,17 +151,34 @@ export function useMeetingRoom(currentUser, activeMeeting, setActiveMeeting, tri
     }
   };
 
-  // Poll voting
+  // Poll voting – truyền meetingId để đường dẫn API đúng
   const handleVote = async (pollId, optionId) => {
+    if (!activeMeeting) return false;
     try {
-      await Storage.submitAnswer(pollId, currentUser.id, optionId);
+      await Storage.submitAnswer(activeMeeting.id, pollId, currentUser.id, optionId);
       const loadedPolls = await Storage.getPolls(activeMeeting.id);
       setPolls(loadedPolls);
-      // Visual feedback / Success notification
       triggerNotification("[Khảo sát] Cảm ơn bạn đã tham gia biểu quyết thành công!");
       return true;
     } catch (err) {
       console.error("Failed to vote:", err);
+      triggerNotification('[Lỗi] ' + (err.message || 'Không thể ghi nhận bình chọn.'));
+      return false;
+    }
+  };
+
+  // Xóa poll qua Storage (không raw fetch trực tiếp)
+  const handleDeletePoll = async (pollId) => {
+    if (!activeMeeting) return false;
+    try {
+      await Storage.deletePoll(activeMeeting.id, pollId);
+      const loadedPolls = await Storage.getPolls(activeMeeting.id);
+      setPolls(loadedPolls);
+      triggerNotification('[Hệ thống] Đã xóa khảo sát.');
+      return true;
+    } catch (err) {
+      console.error("Failed to delete poll:", err);
+      triggerNotification('[Lỗi] ' + (err.message || 'Không thể xóa khảo sát.'));
       return false;
     }
   };
@@ -346,6 +363,7 @@ export function useMeetingRoom(currentUser, activeMeeting, setActiveMeeting, tri
     handleSaveOnlineConfig,
     handleVote,
     handleAddPoll,
+    handleDeletePoll,
     syncMeetingData,
     setupRealtimePolls
   };

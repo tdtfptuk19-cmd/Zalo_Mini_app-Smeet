@@ -31,7 +31,8 @@ const MeetingSchema = new mongoose.Schema({
   files: [FileSchema],
   createdBy: { type: String },
   createdAt: { type: String },
-  status: { type: String, default: 'active' }
+  status: { type: String, default: 'active' }, // active | canceled | completed
+  completedAt: { type: String }
 });
 
 const NoteSchema = new mongoose.Schema({
