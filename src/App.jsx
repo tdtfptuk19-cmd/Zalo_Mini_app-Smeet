@@ -202,34 +202,19 @@ function App() {
 
       {auth.currentUser === null ? (
         <Auth
-          users={auth.users}
           loginEmail={auth.loginEmail}
           setLoginEmail={auth.setLoginEmail}
           loginPhone={auth.loginPhone}
           setLoginPhone={auth.setLoginPhone}
-          otpSent={auth.otpSent}
-          setOtpSent={auth.setOtpSent}
-          loginOtp={auth.loginOtp}
-          setLoginOtp={auth.setLoginOtp}
+          zaloTempProfile={auth.zaloTempProfile}
           isRegistering={auth.isRegistering}
           setIsRegistering={auth.setIsRegistering}
-          registerName={auth.registerName}
-          setRegisterName={auth.setRegisterName}
           registerRole={auth.registerRole}
           setRegisterRole={auth.setRegisterRole}
           loginError={auth.loginError}
           setLoginError={auth.setLoginError}
-          loginEmailMatchedUsers={auth.loginEmailMatchedUsers}
-          loginPhoneMatchedUsers={auth.loginPhoneMatchedUsers}
-          isSelectingAccount={auth.isSelectingAccount}
-          setIsSelectingAccount={auth.setIsSelectingAccount}
-          matchedUserPreview={auth.matchedUserPreview}
-          isCheckingEmail={auth.isCheckingEmail}
-          handleCheckEmailAndSendOtp={auth.handleCheckEmailAndSendOtp}
-          handleSendOtp={auth.handleSendOtp}
-          handleVerifyOtp={auth.handleVerifyOtp}
-          handleSelectAccount={auth.handleSelectAccount}
-          handleRegister={auth.handleRegister}
+          handleZaloLogin={auth.handleZaloLogin}
+          handleLinkEmailAndLogin={auth.handleLinkEmailAndLogin}
           resetLoginStates={auth.resetLoginStates}
         />
       ) : (

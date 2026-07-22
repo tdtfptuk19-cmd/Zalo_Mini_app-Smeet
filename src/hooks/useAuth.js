@@ -39,24 +39,14 @@ export function useAuth(triggerNotification) {
   const [users, setUsers] = useState([]);
   const [loginEmail, setLoginEmail] = useState('');
   const [loginPhone, setLoginPhone] = useState('');
-  const [otpSent, setOtpSent] = useState(false);
-  const [loginOtp, setLoginOtp] = useState('');
-  const [simulatedOtp, setSimulatedOtp] = useState('');
-  const [otpExpiresAt, setOtpExpiresAt] = useState(null); // timestamp OTP hết hạn
+  const [zaloTempProfile, setZaloTempProfile] = useState(null); // Giữ thông tin Zalo tạm thời khi cần liên kết email
   const [isRegistering, setIsRegistering] = useState(false);
   const [registerName, setRegisterName] = useState('');
   const [registerRole, setRegisterRole] = useState(['member']); // Mảng roles, VD: ['admin', 'member']
   const [loginError, setLoginError] = useState('');
-  const [loginEmailMatchedUsers, setLoginEmailMatchedUsers] = useState([]);
-  const [loginPhoneMatchedUsers, setLoginPhoneMatchedUsers] = useState([]);
-  const [isSelectingAccount, setIsSelectingAccount] = useState(false);
   const [personalPhone, setPersonalPhone] = useState('');
   const [isEditingPhone, setIsEditingPhone] = useState(false);
   const [isAvatarModalOpen, setIsAvatarModalOpen] = useState(false);
-
-  // Ref giữ OTP và thời hạn để kiểm tra chính xác khi verify
-  // mode: 'real' = OTP gửi qua email thật (verify phía server), 'simulated' = OTP giả (verify local)
-  const otpRef = useRef({ code: '', expiresAt: 0, mode: 'simulated' });
 
   // Load initial data (only when user is authenticated)
   const initUsers = useCallback(async () => {
@@ -103,198 +93,86 @@ export function useAuth(triggerNotification) {
     return null;
   };
 
-  const [matchedUserPreview, setMatchedUserPreview] = useState(null);
-  const [isCheckingEmail, setIsCheckingEmail] = useState(false);
-
-  const handleSendOtp = async (emailTarget) => {
+  const handleZaloLogin = async () => {
     setLoginError('');
-    const targetEmail = (emailTarget || loginEmail).trim().toLowerCase();
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(targetEmail)) {
-      setLoginError('Email không hợp lệ! Vui lòng kiểm tra lại địa chỉ email (ví dụ: user@example.com).');
-      return false;
-    }
-
     try {
-      const res = await Storage.sendEmailOtp(targetEmail);
-      const expiresAt = Date.now() + OTP_EXPIRY_SECONDS * 1000;
+      await authorize({ scopes: ['scope.userInfo'] });
+      const res = await getUserInfo({});
+      if (res?.userInfo) {
+        const zaloUser = res.userInfo;
+        const apiRes = await Storage.authenticateZalo({
+          id: zaloUser.id,
+          name: zaloUser.name,
+          avatar: zaloUser.avatar
+        });
 
-      if (res && res.mode === 'real') {
-        // Email thật đã gửi — OTP nằm ở server, verify sẽ gọi server
-        otpRef.current = { code: '', expiresAt, mode: 'real' };
-        setSimulatedOtp('');
-        setOtpExpiresAt(expiresAt);
-        setOtpSent(true);
-        triggerNotification(`[Email OTP] Mã xác thực 6 số đã được gửi tới hòm thư ${targetEmail}. Vui lòng kiểm tra Inbox/Spam.`);
-      } else {
-        // Chế độ mô phỏng — OTP trả về trong res.code
-        const code = res.code || Math.floor(100000 + Math.random() * 900000).toString();
-        otpRef.current = { code, expiresAt, mode: 'simulated' };
-        setSimulatedOtp(code);
-        setOtpExpiresAt(expiresAt);
-        setOtpSent(true);
-        triggerNotification(`[Email OTP] Mã xác thực 6 số đã được gửi tới hòm thư ${targetEmail}. Vui lòng kiểm tra Hộp thư đến.`);
-      }
-      return true;
-    } catch (err) {
-      console.warn("Failed calling sendEmailOtp backend:", err);
-      // Không giả thành công — hiển thị lỗi rõ ràng để người dùng biết
-      setLoginError(
-        `Không thể gửi mã OTP. Backend Server chưa sẵn sàng hoặc mạng bị gián đoạn. ` +
-        `Vui lòng kiểm tra cài đặt API URL trong ⚙️ Cài đặt, hoặc thử lại sau.`
-      );
-      return false;
-    }
-  };
-
-  // Modern smart step 1: Check Email existence and route user automatically
-  const handleCheckEmailAndSendOtp = async (emailTarget) => {
-    setLoginError('');
-    const targetEmail = (emailTarget || loginEmail).trim().toLowerCase();
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    
-    if (!emailRegex.test(targetEmail)) {
-      setLoginError('Email không hợp lệ! Vui lòng nhập đúng định dạng (ví dụ: user@example.com).');
-      return false;
-    }
-
-    setIsCheckingEmail(true);
-    setLoginEmail(targetEmail);
-
-    try {
-      let matched = await Storage.lookupUsersByEmail(targetEmail);
-      if ((!matched || matched.length === 0) && /^\d+$/.test(targetEmail)) {
-        matched = await Storage.lookupUsersByPhone(targetEmail);
-      }
-
-      setIsCheckingEmail(false);
-
-      if (matched && matched.length >= 1) {
-        setMatchedUserPreview(matched[0]);
-        setIsRegistering(false);
-        return await handleSendOtp(targetEmail);
-      } else {
-        // Email chưa có tài khoản → chuyển sang form đăng ký
-        setMatchedUserPreview(null);
-        setIsRegistering(true);
+        if (apiRes.needEmailLink) {
+          // Zalo chưa liên kết email -> Lưu Zalo profile để hiển thị form nhập email
+          setZaloTempProfile(apiRes.zaloUser);
+          setIsRegistering(true);
+        } else if (apiRes.user) {
+          // Zalo đã liên kết email -> Đăng nhập thành công
+          setCurrentUser(apiRes.user);
+          await Storage.setLoggedInUser(apiRes.user);
+          resetLoginStates();
+          setTimeout(() => requestNotificationPermission(true), 500);
+        }
         return true;
       }
     } catch (err) {
-      setIsCheckingEmail(false);
-      // If error or backend offline, fallback to direct OTP flow
-      return await handleSendOtp(targetEmail);
-    }
-  };
-
-  const handleVerifyOtp = async (otp) => {
-    setLoginError('');
-    const targetEmail = loginEmail.trim().toLowerCase();
-
-    // Kiểm tra OTP hết hạn (kiểm tra client-side nhanh)
-    if (Date.now() > otpRef.current.expiresAt) {
-      setLoginError('Mã OTP đã hết hạn! Vui lòng nhấn "Gửi lại mã" để nhận mã mới.');
-      return false;
-    }
-
-    if (otpRef.current.mode === 'real') {
-      // Verify OTP qua server (OTP thật đã gửi qua email)
+      console.warn("Zalo SDK auth failed, using Mock Admin for simulation/browser testing:", err);
+      // Giả lập cho trình duyệt: Đăng nhập thẳng bằng tài khoản Nguyễn Văn A có sẵn
       try {
-        const verifyRes = await Storage.verifyEmailOtp(targetEmail, otp);
-        if (!verifyRes.success) {
-          setLoginError(verifyRes.error || 'Mã OTP không chính xác. Vui lòng kiểm tra email và thử lại.');
-          return false;
-        }
-      } catch (err) {
-        setLoginError('Không thể xác minh mã OTP. Vui lòng thử lại.');
-        return false;
+        const mockUser = {
+          id: 'mock_admin_123',
+          name: 'Nguyễn Văn A (Host)',
+          avatar: 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgMTAwIj48Y2lyY2xlIGN4PSI1MCIgY3k9IjUwIiByPSI1MCIgZmlsbD0iI0U2RjBGRiIvPjxjaXJjbGUgY3g9IjUwIiBjeT0iMzgiIHI9IjE4IiBmaWxsPSIjMDA2OEZGIi8+PHBhdGggZD0iTTUwIDYwYy0xOCAwLTMwIDgtMzAgMTh2NGg2MHYtNGMwLTEwLTEyLTE4LTMwLTE4eiIgZmlsbD0iIzAwNjhGRiIvPjwvc3ZnPg==',
+          email: 'nguyenvana@gmail.com',
+          phone: '0912345678',
+          role: 'admin',
+          roles: ['admin']
+        };
+        setCurrentUser(mockUser);
+        await Storage.setLoggedInUser(mockUser);
+        resetLoginStates();
+        return true;
+      } catch (mockErr) {
+        setLoginError('Không thể giả lập đăng nhập: ' + mockErr.message);
       }
-    } else {
-      // Chế độ mô phỏng — so sánh local
-      if (otp !== otpRef.current.code) {
-        setLoginError('Mã OTP không chính xác! Vui lòng kiểm tra lại thông báo ở đầu trang.');
-        return false;
-      }
-    }
-
-    // Dùng matchedUserPreview đã có từ bước lookup email (tránh gọi server lại)
-    if (matchedUserPreview) {
-      setCurrentUser(matchedUserPreview);
-      await Storage.setLoggedInUser(matchedUserPreview);
-      resetLoginStates();
-      setTimeout(() => requestNotificationPermission(true), 500);
-      return true;
-    }
-
-    // Fallback: Lookup lại từ server
-    let matchedUsers = [];
-    try {
-      matchedUsers = await Storage.lookupUsersByEmail(targetEmail);
-      if ((!matchedUsers || matchedUsers.length === 0) && /^\d+$/.test(targetEmail)) {
-        matchedUsers = await Storage.lookupUsersByPhone(targetEmail);
-      }
-    } catch (err) {
-      setLoginError(err.message || 'Không thể tra cứu tài khoản. Vui lòng thử lại.');
       return false;
     }
-
-    if (matchedUsers.length >= 1) {
-      const targetUser = matchedUsers[0];
-      setCurrentUser(targetUser);
-      await Storage.setLoggedInUser(targetUser);
-      resetLoginStates();
-      setTimeout(() => requestNotificationPermission(true), 500);
-    } else {
-      setIsRegistering(true);
-    }
-    return true;
   };
 
-  const handleSelectAccount = async (selectedUser) => {
-    setCurrentUser(selectedUser);
-    await Storage.setLoggedInUser(selectedUser);
-    resetLoginStates();
-    // Xin quyền thông báo nổi hệ thống khi chọn tài khoản (chế độ im lặng)
-    setTimeout(() => requestNotificationPermission(true), 500);
-  };
-
-  const handleRegister = async (name, role) => {
+  const handleLinkEmailAndLogin = async (email, roles) => {
     setLoginError('');
-
-    // Kiểm tra lại đăng ký có được phép không
-    if (!REGISTRATION_OPEN) {
-      setLoginError('Đăng ký tự do đã bị tắt. Vui lòng liên hệ quản trị viên.');
+    if (!email || !email.trim()) {
+      setLoginError('Vui lòng nhập địa chỉ email của bạn.');
       return false;
     }
-
-    if (!name.trim()) {
-      setLoginError('Vui lòng nhập họ và tên của bạn.');
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email.trim().toLowerCase())) {
+      setLoginError('Định dạng email không hợp lệ (ví dụ: user@example.com).');
       return false;
     }
 
     try {
-      const rolesArr = Array.isArray(role) ? role : [role];
-      const primaryRole = rolesArr.includes('admin') ? 'admin'
-        : rolesArr.includes('delegated') ? 'delegated'
-        : 'member';
-      const newUser = {
-        name: name.trim(),
-        email: loginEmail.trim().toLowerCase(),
-        phone: loginPhone || '',
-        role: primaryRole,  // Primary role (backward compat)
-        roles: rolesArr,    // Mảng roles (đa vai trò)
+      const payload = {
+        ...zaloTempProfile,
+        email: email.trim().toLowerCase(),
+        roles: roles || ['member']
       };
 
-      const savedUser = await Storage.saveUser(newUser);
-      await initUsers();
-      
-      setCurrentUser(savedUser);
-      await Storage.setLoggedInUser(savedUser);
-      resetLoginStates();
-      // Xin quyền thông báo nổi hệ thống khi hoàn tất đăng ký (chế độ im lặng)
-      setTimeout(() => requestNotificationPermission(true), 500);
-      return true;
+      const res = await Storage.linkZaloEmail(payload);
+      if (res && res.user) {
+        setCurrentUser(res.user);
+        await Storage.setLoggedInUser(res.user);
+        resetLoginStates();
+        setTimeout(() => requestNotificationPermission(true), 500);
+        return true;
+      }
+      return false;
     } catch (err) {
-      setLoginError(err.message || 'Có lỗi xảy ra khi tạo tài khoản.');
+      setLoginError(err.message || 'Lỗi khi liên kết tài khoản. Vui lòng thử lại.');
       return false;
     }
   };
@@ -302,20 +180,11 @@ export function useAuth(triggerNotification) {
   const resetLoginStates = () => {
     setLoginEmail('');
     setLoginPhone('');
-    setOtpSent(false);
-    setLoginOtp('');
-    setSimulatedOtp('');
-    setOtpExpiresAt(null);
-    setMatchedUserPreview(null);
-    setIsCheckingEmail(false);
-    otpRef.current = { code: '', expiresAt: 0 };
+    setZaloTempProfile(null);
     setIsRegistering(false);
     setRegisterName('');
-    setRegisterRole('member');
+    setRegisterRole(['member']);
     setLoginError('');
-    setLoginEmailMatchedUsers([]);
-    setLoginPhoneMatchedUsers([]);
-    setIsSelectingAccount(false);
   };
 
   const handleLogout = async () => {
@@ -411,12 +280,8 @@ export function useAuth(triggerNotification) {
     setLoginEmail,
     loginPhone,
     setLoginPhone,
-    otpSent,
-    setOtpSent,
-    loginOtp,
-    setLoginOtp,
-    simulatedOtp,
-    otpExpiresAt,
+    zaloTempProfile,
+    setZaloTempProfile,
     isRegistering,
     setIsRegistering,
     registerName,
@@ -425,10 +290,6 @@ export function useAuth(triggerNotification) {
     setRegisterRole,
     loginError,
     setLoginError,
-    loginEmailMatchedUsers,
-    loginPhoneMatchedUsers,
-    isSelectingAccount,
-    setIsSelectingAccount,
     personalPhone,
     setPersonalPhone,
     isEditingPhone,
@@ -437,13 +298,8 @@ export function useAuth(triggerNotification) {
     setIsAvatarModalOpen,
     initUsers,
     refreshUsers,
-    matchedUserPreview,
-    isCheckingEmail,
-    handleCheckEmailAndSendOtp,
-    handleSendOtp,
-    handleVerifyOtp,
-    handleSelectAccount,
-    handleRegister,
+    handleZaloLogin,
+    handleLinkEmailAndLogin,
     handleLogout,
     handleSavePersonalPhone,
     handleAddMember,

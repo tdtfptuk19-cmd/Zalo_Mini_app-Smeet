@@ -331,7 +331,7 @@ const checkConflict = async (newMeeting) => {
 // 1. Authentication Route (public – không cần requireAuth)
 // ─────────────────────────────────────────────────────────────────────
 app.post('/api/auth/zalo', async (req, res) => {
-  const { id, name, avatar, phone, role } = req.body;
+  const { id, name, avatar, phone } = req.body;
   if (!id) {
     return res.status(400).json({ error: 'Missing Zalo User ID' });
   }
@@ -340,29 +340,75 @@ app.post('/api/auth/zalo', async (req, res) => {
     let user = await User.findOne({ id });
 
     if (user) {
-      // Cập nhật thông tin user Zalo hiện có
+      // Cập nhật thông tin profile Zalo
       user.name = name || user.name;
       user.avatar = avatar || user.avatar;
-      user.phone = phone || user.phone;
-      // Không ghi đè role đã có
+      if (phone) user.phone = phone;
       await user.save();
-    } else {
-      // Đăng ký user Zalo mới – mặc định role là 'member' (an toàn hơn 'admin')
-      user = new User({
-        id,
-        name: name || 'Người dùng Zalo',
-        avatar: avatar || ZALO_DEFAULT_AVATAR,
-        phone: phone || '09xxxxxxxx',
-        role: role || 'member', // Luôn là 'member' khi tự đăng ký qua Zalo
-        roles: [role || 'member']
-      });
-      await user.save();
+
+      // Nếu user đã có email -> Cho phép đăng nhập luôn
+      if (user.email) {
+        return res.json({ success: true, needEmailLink: false, user });
+      }
     }
 
-    res.json(user);
+    // Nếu chưa có user hoặc user chưa có email -> Báo cho client hiển thị form liên kết Email
+    return res.json({
+      success: true,
+      needEmailLink: true,
+      zaloUser: { id, name, avatar, phone }
+    });
   } catch (err) {
     console.error('Auth API error:', err);
     res.status(500).json({ error: 'Có lỗi xảy ra khi xác thực người dùng.' });
+  }
+});
+
+// Route mới: Liên kết Zalo ID với Email (Không dùng OTP)
+app.post('/api/auth/zalo-link-email', async (req, res) => {
+  const { id, name, avatar, phone, email, roles } = req.body;
+  if (!id || !email) {
+    return res.status(400).json({ error: 'Thiếu Zalo User ID hoặc địa chỉ Email liên kết.' });
+  }
+
+  const cleanEmail = email.trim().toLowerCase();
+  try {
+    // Tìm xem email này đã tồn tại chưa
+    let user = await User.findOne({ email: cleanEmail });
+
+    if (user) {
+      // Email đã có sẵn tài khoản: Liên kết Zalo ID vào tài khoản này
+      user.id = id; // Cập nhật Zalo ID mới vào tài khoản có sẵn
+      if (name) user.name = name;
+      if (avatar) user.avatar = avatar;
+      if (phone) user.phone = phone;
+      // Giữ nguyên quyền hạn (roles) cũ của tài khoản email để đảm bảo bảo mật
+      await user.save();
+      console.log(`[Zalo Link] ✅ Đã liên kết Zalo ID ${id} vào tài khoản email: ${cleanEmail}`);
+    } else {
+      // Email chưa có tài khoản: Tạo tài khoản mới
+      const rolesArr = Array.isArray(roles) ? roles : (roles ? [roles] : ['member']);
+      const primaryRole = rolesArr.includes('admin') ? 'admin'
+        : rolesArr.includes('delegated') ? 'delegated'
+        : 'member';
+
+      user = new User({
+        id,
+        name: name || 'Người dùng Zalo',
+        email: cleanEmail,
+        phone: phone || undefined,
+        avatar: avatar || ZALO_DEFAULT_AVATAR,
+        role: primaryRole,
+        roles: rolesArr
+      });
+      await user.save();
+      console.log(`[Zalo Link] ✅ Tạo tài khoản mới qua liên kết Zalo: ${user.name} (${cleanEmail})`);
+    }
+
+    res.json({ success: true, user });
+  } catch (err) {
+    console.error('[Zalo Link Error]:', err);
+    res.status(500).json({ error: 'Không thể thực hiện liên kết email: ' + err.message });
   }
 });
 

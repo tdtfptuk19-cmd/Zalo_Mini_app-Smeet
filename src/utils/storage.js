@@ -113,6 +113,14 @@ export const Storage = {
     return res.json();
   },
 
+  linkZaloEmail: async (linkData) => {
+    const res = await safeFetch(`${getApiBase()}/api/auth/zalo-link-email`, {
+      method: 'POST',
+      body: JSON.stringify(linkData)
+    });
+    return res.json();
+  },
+
   // Public lookup for OTP login (no session required)
   sendEmailOtp: async (email) => {
     const res = await safeFetch(`${getApiBase()}/api/auth/send-email-otp`, {
