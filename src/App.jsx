@@ -81,12 +81,15 @@ function App() {
   useEffect(() => {
     const root = document.getElementById('app');
     const body = document.body;
+    const html = document.documentElement;
     if (isDarkMode) {
       if (root) root.classList.add('dark-theme');
       if (body) body.classList.add('dark-theme');
+      if (html) html.classList.add('dark-theme');
     } else {
       if (root) root.classList.remove('dark-theme');
       if (body) body.classList.remove('dark-theme');
+      if (html) html.classList.remove('dark-theme');
     }
   }, [isDarkMode]);
 

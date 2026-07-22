@@ -3821,10 +3821,11 @@ body {
 /* ────────────────────────────────────────────────────────── */
 /* COMPREHENSIVE DARK MODE OPTIMIZATION & POLISH */
 /* ────────────────────────────────────────────────────────── */
-.dark-theme,
+html.dark-theme,
 body.dark-theme,
 #app.dark-theme,
-.app-container.dark-theme {
+.app-container.dark-theme,
+.dark-theme {
   --bg-color: #0b0f17 !important;
   --bg-card: #151c28 !important;
   --card-bg: #151c28 !important;
@@ -3839,9 +3840,16 @@ body.dark-theme,
 }
 
 /* Global App & Header in Dark Mode */
+.dark-theme html,
+.dark-theme body,
 .dark-theme #app,
-.dark-theme .app-container {
+.dark-theme .app-container,
+.dark-theme .app-content,
+.dark-theme .tab-view-wrapper,
+.dark-theme .meeting-list-section,
+.dark-theme .meeting-list-header {
   background-color: #0b0f17 !important;
+  color: #f1f5f9 !important;
 }
 
 .dark-theme .app-header {
@@ -3864,7 +3872,8 @@ body.dark-theme,
   color: #94a3b8 !important;
 }
 
-.dark-theme .section-tab-title {
+.dark-theme .section-tab-title,
+.dark-theme .meeting-section-title {
   color: #f1f5f9 !important;
 }
 
