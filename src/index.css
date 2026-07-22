@@ -8,6 +8,7 @@
   --accent-red-light: #ffebe9;
   --bg-color: #f0f4f9;            /* Soft light background */
   --bg-card: #ffffff;             /* Crisp white card background */
+  --card-bg: #ffffff;             /* Alias for card background */
   --text-primary: #1c1e21;        /* Clean dark text */
   --text-secondary: #5f6368;      /* Muted gray text */
   --text-white: #ffffff;
@@ -3815,6 +3816,209 @@ body {
   background: #0068ff;
   color: #ffffff;
   border-color: #0068ff;
+}
+
+/* ────────────────────────────────────────────────────────── */
+/* COMPREHENSIVE DARK MODE OPTIMIZATION & POLISH */
+/* ────────────────────────────────────────────────────────── */
+.dark-theme,
+body.dark-theme,
+#app.dark-theme,
+.app-container.dark-theme {
+  --bg-color: #0b0f17 !important;
+  --bg-card: #151c28 !important;
+  --card-bg: #151c28 !important;
+  --bg-hover: #1e293b !important;
+  --text-primary: #f1f5f9 !important;
+  --text-secondary: #94a3b8 !important;
+  --text-muted: #64748b !important;
+  --border-color: #243042 !important;
+  --primary-light: rgba(0, 104, 255, 0.18) !important;
+  background-color: #0b0f17 !important;
+  color: #f1f5f9 !important;
+}
+
+/* Global App & Header in Dark Mode */
+.dark-theme #app,
+.dark-theme .app-container {
+  background-color: #0b0f17 !important;
+}
+
+.dark-theme .app-header {
+  background-color: rgba(15, 28, 44, 0.96) !important;
+  border-bottom: 1px solid #243042 !important;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3) !important;
+}
+
+.dark-theme .header-avatar-container {
+  background-color: #151c28 !important;
+  border-color: #243042 !important;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2) !important;
+}
+
+.dark-theme .header-profile-name {
+  color: #f1f5f9 !important;
+}
+
+.dark-theme .header-profile-role {
+  color: #94a3b8 !important;
+}
+
+.dark-theme .section-tab-title {
+  color: #f1f5f9 !important;
+}
+
+/* Dashboard Cards & Stats */
+.dark-theme .dashboard-stat-card,
+.dark-theme .dashboard-meeting-card,
+.dark-theme .dashboard-empty-card,
+.dark-theme .dashboard-all-good-card,
+.dark-theme .card {
+  background-color: #151c28 !important;
+  border-color: #243042 !important;
+  color: #f1f5f9 !important;
+}
+
+.dark-theme .stat-number {
+  color: #f1f5f9 !important;
+}
+
+.dark-theme .stat-label {
+  color: #94a3b8 !important;
+}
+
+/* Calendar & Schedule in Dark Mode */
+.dark-theme .calendar-container-card {
+  background-color: #151c28 !important;
+  border-color: #243042 !important;
+}
+
+.dark-theme .calendar-header {
+  color: #f1f5f9 !important;
+}
+
+.dark-theme .calendar-weekday {
+  color: #94a3b8 !important;
+}
+
+.dark-theme .calendar-cell {
+  background-color: #1a2332 !important;
+  color: #f1f5f9 !important;
+  border-color: #243042 !important;
+}
+
+.dark-theme .calendar-cell:hover {
+  background-color: #243042 !important;
+}
+
+.dark-theme .calendar-cell.selected {
+  background-color: #0068ff !important;
+  color: #ffffff !important;
+}
+
+.dark-theme .calendar-nav-btn {
+  background-color: #1a2332 !important;
+  color: #f1f5f9 !important;
+  border-color: #243042 !important;
+}
+
+/* Meeting Room & Workspace */
+.dark-theme .meeting-workspace-container,
+.dark-theme .quick-meet-preview-card,
+.dark-theme .workspace-prep-box,
+.dark-theme .workspace-files-box,
+.dark-theme .workspace-host-settings,
+.dark-theme .past-meeting-card {
+  background-color: #151c28 !important;
+  border-color: #243042 !important;
+  color: #f1f5f9 !important;
+}
+
+.dark-theme .note-editor-container,
+.dark-theme .notes-history-list {
+  background-color: #0f172a !important;
+  border-color: #243042 !important;
+}
+
+.dark-theme .file-attachment-item,
+.dark-theme .member-list-item {
+  background-color: #1a2332 !important;
+  border-color: #243042 !important;
+  color: #f1f5f9 !important;
+}
+
+/* Reports View in Dark Mode */
+.dark-theme .report-card {
+  background-color: #151c28 !important;
+  border-color: #243042 !important;
+}
+
+.dark-theme .report-title {
+  color: #f1f5f9 !important;
+}
+
+.dark-theme .report-summary-box {
+  background-color: #0f172a !important;
+  border-color: #243042 !important;
+  color: #cbd5e1 !important;
+}
+
+.dark-theme .report-action-btn {
+  background-color: #1a2332 !important;
+  border-color: #243042 !important;
+  color: #f1f5f9 !important;
+}
+
+.dark-theme .report-action-btn:hover {
+  background-color: #243042 !important;
+}
+
+/* Bottom Nav in Dark Mode */
+.dark-theme .bottom-nav-tabs {
+  background: rgba(15, 28, 44, 0.98) !important;
+  border-top-color: #243042 !important;
+  box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.5) !important;
+}
+
+.dark-theme .bottom-nav-item {
+  color: #94a3b8 !important;
+}
+
+.dark-theme .bottom-nav-item.active {
+  color: #38bdf8 !important;
+}
+
+/* Modals & Settings Drawer in Dark Mode */
+.dark-theme .modal-content,
+.dark-theme .drawer-content,
+.dark-theme .terms-modal-content {
+  background-color: #151c28 !important;
+  color: #f1f5f9 !important;
+  border-color: #243042 !important;
+}
+
+.dark-theme .settings-drawer-header,
+.dark-theme .modal-header {
+  border-bottom-color: #243042 !important;
+}
+
+.dark-theme .drawer-section-group {
+  background-color: #1a2332 !important;
+  border-color: #243042 !important;
+}
+
+.dark-theme .select-input,
+.dark-theme .input-text,
+.dark-theme .textarea-input {
+  background-color: #0f172a !important;
+  color: #f1f5f9 !important;
+  border-color: #243042 !important;
+}
+
+.dark-theme .auth-otp-box {
+  background-color: #0f172a !important;
+  color: #f1f5f9 !important;
+  border-color: #243042 !important;
 }
 
 

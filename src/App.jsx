@@ -79,11 +79,14 @@ function App() {
 
   // Sync HTML elements class list for theme changes
   useEffect(() => {
-    const root = document.getElementById('app') || document.body;
+    const root = document.getElementById('app');
+    const body = document.body;
     if (isDarkMode) {
-      root.classList.add('dark-theme');
+      if (root) root.classList.add('dark-theme');
+      if (body) body.classList.add('dark-theme');
     } else {
-      root.classList.remove('dark-theme');
+      if (root) root.classList.remove('dark-theme');
+      if (body) body.classList.remove('dark-theme');
     }
   }, [isDarkMode]);
 
