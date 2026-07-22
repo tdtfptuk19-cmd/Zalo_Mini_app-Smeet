@@ -1,6 +1,7 @@
 import { useState, useCallback, useMemo, useEffect } from 'react';
 import { Storage } from '../utils/storage';
 import { checkAndSendMeetingNotifications, sendMeetingCreatedNotification } from '../utils/notificationHelper';
+import { hasRole } from './useAuth';
 
 export function useMeetings(currentUser, triggerNotification) {
   const [currentDate, setCurrentDate] = useState(new Date());
@@ -156,7 +157,7 @@ export function useMeetings(currentUser, triggerNotification) {
       if (!isDateMatch) return false;
       
       if (!currentUser) return false;
-      const isAdmin = currentUser.role === 'admin';
+      const isAdmin = hasRole(currentUser, 'admin');
       const isHost = m.createdBy === currentUser.id || m.hostPhone === currentUser.phone;
       const isInvited = (m.members && m.members.includes(currentUser.id)) || 
                         (m.memberPhones && m.memberPhones.includes(currentUser.phone));

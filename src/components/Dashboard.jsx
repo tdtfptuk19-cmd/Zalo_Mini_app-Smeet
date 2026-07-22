@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Users, Calendar, FileText, Clock, CheckCircle, AlertCircle, TrendingUp, BellPlus } from 'lucide-react';
+import { hasRole, getRoleLabel } from '../hooks/useAuth';
 import { Storage } from '../utils/storage';
 import { downloadIcsFile } from '../utils/calendarHelper';
 
@@ -101,8 +102,8 @@ export const Dashboard = React.memo(({ currentUser, onEnterMeeting, onOpenCreate
     );
   }
 
-  const isAdmin = currentUser?.role === 'admin';
-  const isAdminOrDelegated = isAdmin || currentUser?.role === 'delegated';
+  const isAdmin = hasRole(currentUser, 'admin');
+  const isAdminOrDelegated = isAdmin || hasRole(currentUser, 'delegated');
 
   return (
     <div className="dashboard-view">

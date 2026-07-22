@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { AlertCircle, Upload, Plus, Trash2, X, Check } from 'lucide-react';
 import { Storage } from '../utils/storage';
 import { formatExternalUrl } from '../utils/calendarHelper';
+import { hasRole, getRoleLabel } from '../hooks/useAuth';
 
 const generateRandomMeetLink = () => {
   const randStr = (len) => {
@@ -279,7 +280,7 @@ export const MeetingFormModal = React.memo(({
   if (!isOpen) return null;
 
   // Phân quyền: member chỉ xem/edit nếu họ là host; không được tạo mới
-  const isAdminOrDelegated = currentUser?.role === 'admin' || currentUser?.role === 'delegated';
+  const isAdminOrDelegated = hasRole(currentUser, 'admin') || hasRole(currentUser, 'delegated');
   const isMemberCreatingNew = !editingMeeting && !isAdminOrDelegated;
   if (isMemberCreatingNew) {
     return (
@@ -557,7 +558,7 @@ export const MeetingFormModal = React.memo(({
                           <img src={u.avatar} alt={u.name} className="autocomplete-avatar" />
                           <div className="autocomplete-user-info">
                             <span className="user-name">{u.name}</span>
-                            <span className="user-phone">{u.phone} ({u.role === 'admin' ? 'Host' : 'Thành viên'})</span>
+                            <span className="user-phone">{u.phone} ({getRoleLabel(u)})</span>
                           </div>
                           <Plus size={14} color="var(--primary-color)" />
                         </button>

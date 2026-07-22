@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Settings, LogOut, Trash2, CheckCircle, Plus, Camera, Send, ShieldCheck, FileText } from 'lucide-react';
 import { Storage } from '../utils/storage';
 import { TermsModal } from './TermsModal';
+import { hasRole, getRoleLabel } from '../hooks/useAuth';
 
 export const SettingsDrawer = React.memo(({
   isOpen,
@@ -111,7 +112,7 @@ export const SettingsDrawer = React.memo(({
     }, 500);
   };
 
-  const isAdmin = currentUser?.role === 'admin';
+  const isAdmin = hasRole(currentUser, 'admin');
 
   if (!isOpen) return null;
 
@@ -186,36 +187,24 @@ export const SettingsDrawer = React.memo(({
                   </div>
                 )}
                 
-                <span className={`role-badge ${currentUser.role === 'admin' ? 'role-admin' : currentUser.role === 'delegated' ? 'role-delegated' : 'role-member'}`}>
-                  {currentUser.role === 'admin' ? t('Quản lý', 'Admin') : currentUser.role === 'delegated' ? t('Ủy quyền', 'Delegated') : t('Thành viên', 'Member')}
-                </span>
+                {/* Hiển thị tất cả roles của user (hỗ trợ đa vai trò) */}
+                {(() => {
+                  const roleList = (Array.isArray(currentUser.roles) && currentUser.roles.length > 0)
+                    ? currentUser.roles
+                    : [currentUser.role || 'member'];
+                  const roleClass = {
+                    admin: 'role-admin', delegated: 'role-delegated', member: 'role-member'
+                  };
+                  return roleList.map(r => (
+                    <span key={r} className={`role-badge ${roleClass[r] || 'role-member'}`}
+                      style={{ marginRight: '4px' }}>
+                      {r === 'admin' ? t('Quản lý', 'Admin') : r === 'delegated' ? t('Ủy quyền', 'Delegated') : t('Thành viên', 'Member')}
+                    </span>
+                  ));
+                })()}
               </div>
             </div>
 
-            {/* Quick Multi-role account switcher */}
-            {users.filter(u => u.phone === currentUser.phone).length > 1 && (
-              <div className="settings-section role-switcher-section">
-                <span className="section-subtitle">{t('Đổi Vai Trò Nhanh', 'Quick Role Switcher')}</span>
-                <div className="switcher-buttons-list">
-                  {users.filter(u => u.phone === currentUser.phone).map(u => {
-                    const isActive = u.id === currentUser.id;
-                    return (
-                      <button
-                        key={u.id}
-                        type="button"
-                        onClick={async () => {
-                          await handleUserChange(u.id);
-                        }}
-                        className={`btn btn-secondary switcher-role-btn ${isActive ? 'active-role' : ''}`}
-                      >
-                        <span>{u.name} ({u.role === 'admin' ? t('Quản lý', 'Admin') : u.role === 'delegated' ? t('Ủy quyền', 'Delegated') : t('Thành viên', 'Member')})</span>
-                        {isActive && <CheckCircle size={14} color="var(--primary-color)" />}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
 
             {/* UI customization settings */}
             <div className="settings-section ui-theme-customization">
@@ -407,8 +396,8 @@ export const SettingsDrawer = React.memo(({
                         </div>
                       </div>
                       <div className="member-card-actions">
-                        <span className={`role-badge ${u.role === 'admin' ? 'role-admin' : u.role === 'delegated' ? 'role-delegated' : 'role-member'}`}>
-                          {u.role === 'admin' ? 'QL' : u.role === 'delegated' ? 'UQ' : 'TV'}
+                        <span className={`role-badge ${hasRole(u, 'admin') ? 'role-admin' : hasRole(u, 'delegated') ? 'role-delegated' : 'role-member'}`}>
+                          {hasRole(u, 'admin') ? 'QL' : hasRole(u, 'delegated') ? 'UQ' : 'TV'}
                         </span>
                         
                         {u.id !== currentUser.id && (

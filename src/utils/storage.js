@@ -275,14 +275,34 @@ export const Storage = {
   },
 
   // ─── Session / Logged In User ───
+  // Session hết hạn sau 3 ngày (tính từ lần đăng nhập gần nhất)
+  SESSION_EXPIRY_MS: 3 * 24 * 60 * 60 * 1000, // 3 ngày = 259200000ms
+
   getLoggedInUser: async () => {
-    const userJson = window.localStorage.getItem('zmp_logged_in_user');
-    return userJson ? JSON.parse(userJson) : null;
+    try {
+      const userJson = window.localStorage.getItem('zmp_logged_in_user');
+      if (!userJson) return null;
+      const saved = JSON.parse(userJson);
+      // Kiểm tra session đã hết hạn chưa
+      if (saved && saved._loginAt) {
+        const elapsed = Date.now() - saved._loginAt;
+        if (elapsed > Storage.SESSION_EXPIRY_MS) {
+          window.localStorage.removeItem('zmp_logged_in_user');
+          console.info('[Session] Phương pháp bảo vệ: Session đã hết hạn sau 3 ngày. Yêu cầu đăng nhập lại.');
+          return null;
+        }
+      }
+      return saved;
+    } catch {
+      return null;
+    }
   },
   
   setLoggedInUser: async (user) => {
     if (user) {
-      window.localStorage.setItem('zmp_logged_in_user', JSON.stringify(user));
+      // Lưu kèm timestamp đăng nhập để kiểm tra hết hạn session
+      const sessionData = { ...user, _loginAt: user._loginAt || Date.now() };
+      window.localStorage.setItem('zmp_logged_in_user', JSON.stringify(sessionData));
     } else {
       window.localStorage.removeItem('zmp_logged_in_user');
     }

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Video, MapPin, Phone, Edit, ArrowRight, Plus, Calendar, X, Zap, BellPlus } from 'lucide-react';
 import { downloadIcsFile } from '../utils/calendarHelper';
+import { hasRole } from '../hooks/useAuth';
 
 export const MeetingList = React.memo(({
   selectedDate,
@@ -28,7 +29,7 @@ export const MeetingList = React.memo(({
     return () => document.removeEventListener('click', closeTooltip);
   }, []);
 
-  const hasWriteAccess = currentUser?.role === 'admin' || currentUser?.role === 'delegated';
+  const hasWriteAccess = hasRole(currentUser, 'admin') || hasRole(currentUser, 'delegated');
 
   const now = new Date();
 
@@ -83,7 +84,7 @@ export const MeetingList = React.memo(({
   };
 
   const renderMeetingCard = (meeting, isPast = false, isLive = false) => {
-    const isCreator = currentUser?.role === 'admin' || currentUser?.id === meeting.createdBy;
+    const isCreator = hasRole(currentUser, 'admin') || currentUser?.id === meeting.createdBy;
     const startTimeStr = new Date(meeting.startTime).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
     const isCanceled = meeting.status === 'canceled';
     

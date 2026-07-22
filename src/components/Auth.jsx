@@ -4,6 +4,7 @@ import logo from '../assets/logo.png';
 import { TermsModal } from './TermsModal';
 import { authorize, getUserInfo } from 'zmp-sdk/apis';
 import { Storage } from '../utils/storage';
+import { getRoleLabel } from '../hooks/useAuth';
 
 export const Auth = React.memo(({
   users,
@@ -200,47 +201,7 @@ export const Auth = React.memo(({
           </div>
         )}
         
-        {/* ────────────────────────────────────────────────────────── */}
-        {/* CASE 1: MULTI-ACCOUNT PICKER */}
-        {/* ────────────────────────────────────────────────────────── */}
-        {isSelectingAccount && (
-          <div className="auth-account-select-container">
-            <div className="auth-helper-banner">
-              Địa chỉ email này liên kết với nhiều tài khoản. Vui lòng chọn tài khoản muốn đăng nhập:
-            </div>
-            
-            <div className="auth-accounts-list">
-              {matchedUsers.map(u => (
-                <button
-                  key={u.id}
-                  type="button"
-                  onClick={() => handleSelectAccount(u)}
-                  className="btn btn-secondary auth-account-btn"
-                >
-                  <div className="auth-account-info">
-                    <img src={u.avatar} alt={u.name} className="auth-account-avatar" />
-                    <div className="auth-account-details">
-                      <span className="auth-account-name">{u.name}</span>
-                      <span className="auth-account-role">
-                        Role: {u.role === 'admin' ? 'Quản lý (Host)' : u.role === 'delegated' ? 'Ủy quyền' : 'Thành viên'}
-                      </span>
-                    </div>
-                  </div>
-                  <ArrowRight size={16} color="var(--primary-color)" />
-                </button>
-              ))}
-            </div>
 
-            <button 
-              type="button" 
-              onClick={resetLoginStates} 
-              className="btn btn-secondary"
-              style={{ marginTop: '12px' }}
-            >
-              Quay lại
-            </button>
-          </div>
-        )}
 
         {/* ────────────────────────────────────────────────────────── */}
         {/* CASE 2: STEP 1 - EMAIL INPUT (SMART LOOKUP) */}
@@ -336,7 +297,7 @@ export const Auth = React.memo(({
         {/* ──────────────────────────────────────────────────────────── */}
         {/* CASE 3: STEP 2 - ENTER OTP (EXISTING USER or MULTI-ACCOUNT) */}
         {/* ──────────────────────────────────────────────────────────── */}
-        {otpSent && !isRegistering && !isSelectingAccount && (
+        {otpSent && !isRegistering && (
           <form onSubmit={onSubmitOtp} className="auth-form">
             
             {/* User Greeting Card */}
@@ -348,7 +309,7 @@ export const Auth = React.memo(({
                   <span className="preview-name">{matchedUserPreview.name}</span>
                 </div>
                 <span className="badge badge-primary">
-                  {matchedUserPreview.role === 'admin' ? 'Host' : matchedUserPreview.role === 'delegated' ? 'Ủy quyền' : 'Thành viên'}
+                  {getRoleLabel(matchedUserPreview)}
                 </span>
               </div>
             )}
@@ -443,7 +404,7 @@ export const Auth = React.memo(({
         {/* ────────────────────────────────────────────────────────── */}
         {/* CASE 4: STEP 2 - NEW USER REGISTRATION */}
         {/* ────────────────────────────────────────────────────────── */}
-        {isRegistering && !otpSent && !isSelectingAccount && (
+        {isRegistering && !otpSent && (
           <form onSubmit={onSubmitRegisterForm} className="auth-form">
             <div className="auth-helper-banner info">
               <UserCheck size={16} />
@@ -465,16 +426,36 @@ export const Auth = React.memo(({
             </div>
 
             <div className="form-group">
-              <label htmlFor="register-role">Vai trò trong cuộc họp</label>
-              <select
-                id="register-role"
-                value={registerRole}
-                onChange={(e) => setRegisterRole(e.target.value)}
-                className="select-input"
-              >
-                <option value="member">Thành viên tham gia họp (Member)</option>
-                <option value="admin">Chủ trì cuộc họp (Host / Admin)</option>
-              </select>
+              <label>Vai trò trong cuộc họp (có thể chọn nhiều vai trò)</label>
+              <div className="auth-roles-checkboxes">
+                {[
+                  { value: 'member', label: 'Thành viên tham gia họp (Member)' },
+                  { value: 'admin', label: 'Chủ trì cuộc họp (Host / Admin)' },
+                  { value: 'delegated', label: 'Ủy quyền tổ chức (Delegated)' },
+                ].map(opt => {
+                  const checked = Array.isArray(registerRole) ? registerRole.includes(opt.value) : registerRole === opt.value;
+                  return (
+                    <label key={opt.value} className="auth-role-checkbox-label">
+                      <input
+                        type="checkbox"
+                        value={opt.value}
+                        checked={checked}
+                        onChange={(e) => {
+                          const current = Array.isArray(registerRole) ? registerRole : [registerRole];
+                          if (e.target.checked) {
+                            setRegisterRole([...current, opt.value]);
+                          } else {
+                            const next = current.filter(r => r !== opt.value);
+                            setRegisterRole(next.length > 0 ? next : ['member']);
+                          }
+                        }}
+                        className="auth-role-checkbox"
+                      />
+                      <span>{opt.label}</span>
+                    </label>
+                  );
+                })}
+              </div>
             </div>
             
             <button type="submit" className="btn btn-primary">
@@ -493,7 +474,7 @@ export const Auth = React.memo(({
         )}
 
         {/* STEP 2B - OTP VERIFY FOR NEW USER */}
-        {isRegistering && otpSent && !isSelectingAccount && (
+        {isRegistering && otpSent && (
           <form onSubmit={async (e) => {
             e.preventDefault();
             if (loginOtp.length !== otpLength) {

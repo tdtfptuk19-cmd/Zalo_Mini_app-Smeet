@@ -353,7 +353,8 @@ app.post('/api/auth/zalo', async (req, res) => {
         name: name || 'Người dùng Zalo',
         avatar: avatar || ZALO_DEFAULT_AVATAR,
         phone: phone || '09xxxxxxxx',
-        role: role || 'member' // Luôn là 'member' khi tự đăng ký qua Zalo
+        role: role || 'member', // Luôn là 'member' khi tự đăng ký qua Zalo
+        roles: [role || 'member']
       });
       await user.save();
     }
@@ -384,7 +385,7 @@ app.get('/api/users/lookup', async (req, res) => {
   }
 
   try {
-    const users = await User.find(query).select('id name email phone role avatar defaultMeet -_id');
+    const users = await User.find(query).select('id name email phone role roles avatar defaultMeet -_id');
     res.json(users);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -535,7 +536,7 @@ app.post('/api/auth/verify-email-otp', (req, res) => {
 // 1e. Public User Registration (cho phép người dùng mới tự đăng ký sau khi xác thực OTP)
 // ─────────────────────────────────────────────────────────────────────
 app.post('/api/auth/register', async (req, res) => {
-  const { name, email, phone, role } = req.body;
+  const { name, email, phone, role, roles } = req.body;
   if (!name || !name.trim()) {
     return res.status(400).json({ error: 'Vui lòng nhập họ và tên.' });
   }
@@ -549,16 +550,23 @@ app.post('/api/auth/register', async (req, res) => {
   }
 
   try {
+    const rolesArr = Array.isArray(roles) ? roles : (roles ? [roles] : [role || 'member']);
+    // Xác định primary role
+    const primaryRole = rolesArr.includes('admin') ? 'admin'
+      : rolesArr.includes('delegated') ? 'delegated'
+      : 'member';
+
     const newUser = new User({
       id: 'u_' + Date.now() + '_' + Math.floor(Math.random() * 1000),
       name: name.trim(),
       email: cleanEmail || undefined,
       phone: (phone || '').trim() || undefined,
-      role: 'member', // Tự đăng ký luôn mang role member
+      role: primaryRole,
+      roles: rolesArr,
       avatar: ZALO_DEFAULT_AVATAR
     });
     await newUser.save();
-    console.log(`[Register] ✅ Đăng ký tài khoản mới thành công: ${newUser.name} (${newUser.email})`);
+    console.log(`[Register] ✅ Đăng ký tài khoản mới thành công: ${newUser.name} (${newUser.email}) - Roles: ${newUser.roles.join(', ')}`);
     res.json(newUser);
   } catch (err) {
     console.error('[Register Error]:', err);
@@ -585,8 +593,21 @@ app.post('/api/users', requireAuth, async (req, res) => {
 
   // Cho phép tự cập nhật thông tin cá nhân, hoặc admin cập nhật bất kỳ ai
   const isSelf = user.id === caller.id;
-  if (!isSelf && caller.role !== 'admin') {
+  // Hỗ trợ kiểm tra admin qua cả role chính hoặc mảng roles
+  const callerIsAdmin = caller.role === 'admin' || (Array.isArray(caller.roles) && caller.roles.includes('admin'));
+  if (!isSelf && !callerIsAdmin) {
     return res.status(403).json({ error: 'Chỉ admin mới được thêm hoặc sửa thông tin thành viên khác.' });
+  }
+
+  // Đồng bộ hóa role chính và mảng roles để tránh không nhất quán dữ liệu
+  if (user.roles) {
+    const rolesArr = Array.isArray(user.roles) ? user.roles : [user.roles];
+    user.roles = rolesArr;
+    user.role = rolesArr.includes('admin') ? 'admin'
+      : rolesArr.includes('delegated') ? 'delegated'
+      : 'member';
+  } else if (user.role) {
+    user.roles = [user.role];
   }
 
   try {
@@ -595,11 +616,15 @@ app.post('/api/users', requireAuth, async (req, res) => {
       res.json(updated);
     } else {
       // Tạo user mới – chỉ admin được làm
-      if (caller.role !== 'admin') {
+      if (!callerIsAdmin) {
         return res.status(403).json({ error: 'Chỉ admin mới được tạo thành viên mới.' });
       }
       user.id = 'u_' + Date.now();
       user.avatar = user.avatar || ZALO_DEFAULT_AVATAR;
+      if (!user.role && !user.roles) {
+        user.role = 'member';
+        user.roles = ['member'];
+      }
       const created = new User(user);
       await created.save();
       res.json(created);

@@ -5,7 +5,9 @@ const UserSchema = new mongoose.Schema({
   name: { type: String, required: true },
   email: { type: String },
   phone: { type: String },
+  // role: Primary role (backward compat), roles: Mảng các role (hỗ trợ đa vai trò)
   role: { type: String, default: 'member' },
+  roles: { type: [String], default: [] }, // VD: ['admin', 'member'] — một tài khoản nhiều vai trò
   avatar: { type: String },
   defaultMeet: { type: String }
 });

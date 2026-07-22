@@ -1,3 +1,29 @@
+// Helper: kiểm tra user có role cụ thể không (hỗ trợ cả role string cũ và roles array mới)
+export const hasRole = (user, roleToCheck) => {
+  if (!user) return false;
+  // Kiểm tra roles array trước (mới)
+  if (Array.isArray(user.roles) && user.roles.length > 0) {
+    return user.roles.includes(roleToCheck);
+  }
+  // Fallback: kiểm tra role string (cũ, backward compat)
+  return user.role === roleToCheck;
+};
+
+// Helper: lấy label hiển thị cho tất cả roles của user
+export const getRoleLabel = (user, lang = 'vi') => {
+  if (!user) return '';
+  const labelMap = {
+    admin: lang === 'vi' ? 'Quản lý' : 'Admin',
+    delegated: lang === 'vi' ? 'Ủy quyền' : 'Delegated',
+    member: lang === 'vi' ? 'Thành viên' : 'Member',
+  };
+  const roleList = (Array.isArray(user.roles) && user.roles.length > 0)
+    ? user.roles
+    : (user.role ? [user.role] : ['member']);
+  return roleList.map(r => labelMap[r] || r).join(' / ');
+};
+
+
 import { useState, useCallback, useRef } from 'react';
 import { Storage } from '../utils/storage';
 import { requestNotificationPermission } from '../utils/notificationHelper';
@@ -19,7 +45,7 @@ export function useAuth(triggerNotification) {
   const [otpExpiresAt, setOtpExpiresAt] = useState(null); // timestamp OTP hết hạn
   const [isRegistering, setIsRegistering] = useState(false);
   const [registerName, setRegisterName] = useState('');
-  const [registerRole, setRegisterRole] = useState('member');
+  const [registerRole, setRegisterRole] = useState(['member']); // Mảng roles, VD: ['admin', 'member']
   const [loginError, setLoginError] = useState('');
   const [loginEmailMatchedUsers, setLoginEmailMatchedUsers] = useState([]);
   const [loginPhoneMatchedUsers, setLoginPhoneMatchedUsers] = useState([]);
@@ -143,13 +169,7 @@ export function useAuth(triggerNotification) {
 
       setIsCheckingEmail(false);
 
-      if (matched && matched.length > 1) {
-        // Bảo mật: Gửi OTP trước, chỉ hiện picker tài khoản SAU KHI verify OTP thành công
-        setLoginEmailMatchedUsers(matched);
-        setMatchedUserPreview(null);
-        setIsRegistering(false);
-        return await handleSendOtp(targetEmail);
-      } else if (matched && matched.length === 1) {
+      if (matched && matched.length >= 1) {
         setMatchedUserPreview(matched[0]);
         setIsRegistering(false);
         return await handleSendOtp(targetEmail);
@@ -196,7 +216,7 @@ export function useAuth(triggerNotification) {
       }
     }
 
-    // Ưu tiên 1: Dùng matchedUserPreview đã có từ bước lookup email (tránh gọi server lại)
+    // Dùng matchedUserPreview đã có từ bước lookup email (tránh gọi server lại)
     if (matchedUserPreview) {
       setCurrentUser(matchedUserPreview);
       await Storage.setLoggedInUser(matchedUserPreview);
@@ -205,14 +225,7 @@ export function useAuth(triggerNotification) {
       return true;
     }
 
-    // Ưu tiên 2: Đã có danh sách multi-account từ bước lookup (chờ OTP verify)
-    if (loginEmailMatchedUsers && loginEmailMatchedUsers.length > 1) {
-      // OTP đã verify thành công → giờ mới hiện picker
-      setIsSelectingAccount(true);
-      return true;
-    }
-
-    // Fallback: Lookup lại từ server (trường hợp không có cache)
+    // Fallback: Lookup lại từ server
     let matchedUsers = [];
     try {
       matchedUsers = await Storage.lookupUsersByEmail(targetEmail);
@@ -224,10 +237,7 @@ export function useAuth(triggerNotification) {
       return false;
     }
 
-    if (matchedUsers.length > 1) {
-      setLoginEmailMatchedUsers(matchedUsers);
-      setIsSelectingAccount(true);
-    } else if (matchedUsers.length === 1) {
+    if (matchedUsers.length >= 1) {
       const targetUser = matchedUsers[0];
       setCurrentUser(targetUser);
       await Storage.setLoggedInUser(targetUser);
@@ -262,11 +272,16 @@ export function useAuth(triggerNotification) {
     }
 
     try {
+      const rolesArr = Array.isArray(role) ? role : [role];
+      const primaryRole = rolesArr.includes('admin') ? 'admin'
+        : rolesArr.includes('delegated') ? 'delegated'
+        : 'member';
       const newUser = {
         name: name.trim(),
         email: loginEmail.trim().toLowerCase(),
         phone: loginPhone || '',
-        role: 'member' // Tự đăng ký chỉ được role 'member'
+        role: primaryRole,  // Primary role (backward compat)
+        roles: rolesArr,    // Mảng roles (đa vai trò)
       };
 
       const savedUser = await Storage.saveUser(newUser);

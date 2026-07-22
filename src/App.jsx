@@ -3,7 +3,7 @@ import { authorize, getUserInfo } from 'zmp-sdk/apis';
 import { Download, FileText, Trash2, LayoutDashboard, Calendar, Video, Plus } from 'lucide-react';
 
 import { Storage } from './utils/storage';
-import { useAuth } from './hooks/useAuth';
+import { useAuth, getRoleLabel } from './hooks/useAuth';
 import { useMeetings } from './hooks/useMeetings';
 import { useMeetingRoom } from './hooks/useMeetingRoom';
 
@@ -250,7 +250,7 @@ function App() {
                 <div className="header-profile-meta">
                   <span className="header-profile-name">{auth.currentUser.name}</span>
                   <span className="header-profile-role">
-                    {auth.currentUser.role === 'admin' ? t('Quản lý', 'Admin') : auth.currentUser.role === 'delegated' ? t('Ủy quyền', 'Delegated') : t('Thành viên', 'Member')}
+                    {getRoleLabel(auth.currentUser, appLanguage)}
                   </span>
                 </div>
                 <img 

@@ -3818,6 +3818,66 @@ body {
   border-color: #0068ff;
 }
 
+/* Multi-role checkboxes trong form đăng ký */
+.auth-roles-checkboxes {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 6px;
+}
+
+.auth-role-checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  border: 1.5px solid var(--border-color, #e2e8f0);
+  border-radius: 10px;
+  cursor: pointer;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--text-primary, #1e293b);
+  background: var(--bg-card, #fff);
+  transition: all 0.18s ease;
+  user-select: none;
+}
+
+.auth-role-checkbox-label:hover {
+  border-color: #0068ff;
+  background: rgba(0, 104, 255, 0.05);
+}
+
+.auth-role-checkbox-label:has(.auth-role-checkbox:checked) {
+  border-color: #0068ff;
+  background: rgba(0, 104, 255, 0.08);
+  color: #0068ff;
+}
+
+.auth-role-checkbox {
+  width: 18px;
+  height: 18px;
+  accent-color: #0068ff;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.dark-theme .auth-role-checkbox-label {
+  border-color: rgba(255,255,255,0.12);
+  background: rgba(255,255,255,0.04);
+  color: var(--text-primary, #e2e8f0);
+}
+
+.dark-theme .auth-role-checkbox-label:hover {
+  border-color: #4d94ff;
+  background: rgba(77, 148, 255, 0.1);
+}
+
+.dark-theme .auth-role-checkbox-label:has(.auth-role-checkbox:checked) {
+  border-color: #4d94ff;
+  background: rgba(77, 148, 255, 0.15);
+  color: #4d94ff;
+}
+
 /* ────────────────────────────────────────────────────────── */
 /* COMPREHENSIVE DARK MODE OPTIMIZATION & POLISH */
 /* ────────────────────────────────────────────────────────── */
