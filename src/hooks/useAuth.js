@@ -144,15 +144,17 @@ export function useAuth(triggerNotification) {
       setIsCheckingEmail(false);
 
       if (matched && matched.length > 1) {
+        // Bảo mật: Gửi OTP trước, chỉ hiện picker tài khoản SAU KHI verify OTP thành công
         setLoginEmailMatchedUsers(matched);
-        setIsSelectingAccount(true);
-        return true;
+        setMatchedUserPreview(null);
+        setIsRegistering(false);
+        return await handleSendOtp(targetEmail);
       } else if (matched && matched.length === 1) {
         setMatchedUserPreview(matched[0]);
         setIsRegistering(false);
         return await handleSendOtp(targetEmail);
       } else {
-        // New user! Transition to register details screen
+        // Email chưa có tài khoản → chuyển sang form đăng ký
         setMatchedUserPreview(null);
         setIsRegistering(true);
         return true;
@@ -194,6 +196,23 @@ export function useAuth(triggerNotification) {
       }
     }
 
+    // Ưu tiên 1: Dùng matchedUserPreview đã có từ bước lookup email (tránh gọi server lại)
+    if (matchedUserPreview) {
+      setCurrentUser(matchedUserPreview);
+      await Storage.setLoggedInUser(matchedUserPreview);
+      resetLoginStates();
+      setTimeout(() => requestNotificationPermission(true), 500);
+      return true;
+    }
+
+    // Ưu tiên 2: Đã có danh sách multi-account từ bước lookup (chờ OTP verify)
+    if (loginEmailMatchedUsers && loginEmailMatchedUsers.length > 1) {
+      // OTP đã verify thành công → giờ mới hiện picker
+      setIsSelectingAccount(true);
+      return true;
+    }
+
+    // Fallback: Lookup lại từ server (trường hợp không có cache)
     let matchedUsers = [];
     try {
       matchedUsers = await Storage.lookupUsersByEmail(targetEmail);

@@ -333,9 +333,9 @@ export const Auth = React.memo(({
           </form>
         )}
 
-        {/* ────────────────────────────────────────────────────────── */}
-        {/* CASE 3: STEP 2 - ENTER OTP (EXISTING USER) */}
-        {/* ────────────────────────────────────────────────────────── */}
+        {/* ──────────────────────────────────────────────────────────── */}
+        {/* CASE 3: STEP 2 - ENTER OTP (EXISTING USER or MULTI-ACCOUNT) */}
+        {/* ──────────────────────────────────────────────────────────── */}
         {otpSent && !isRegistering && !isSelectingAccount && (
           <form onSubmit={onSubmitOtp} className="auth-form">
             
@@ -353,16 +353,41 @@ export const Auth = React.memo(({
               </div>
             )}
 
-            <div className="auth-helper-banner">
-              Mã xác thực OTP 6 số đã được gửi tới <strong>{loginEmail}</strong>.
-              <button 
-                type="button" 
-                onClick={resetLoginStates} 
-                className="auth-change-phone-btn"
-              >
-                Đổi Email
-              </button>
-            </div>
+            {/* Banner thông tin — phân biệt single-account và multi-account */}
+            {matchedUserPreview ? (
+              <div className="auth-helper-banner">
+                Mã xác thực OTP 6 số đã được gửi tới <strong>{loginEmail}</strong>.
+                <button 
+                  type="button" 
+                  onClick={resetLoginStates} 
+                  className="auth-change-phone-btn"
+                >
+                  Đổi Email
+                </button>
+              </div>
+            ) : loginEmailMatchedUsers && loginEmailMatchedUsers.length > 1 ? (
+              <div className="auth-helper-banner info">
+                Email <strong>{loginEmail}</strong> liên kết với <strong>{loginEmailMatchedUsers.length} tài khoản</strong>. Nhập mã OTP để xác thực rồi chọn tài khoản.
+                <button 
+                  type="button" 
+                  onClick={resetLoginStates} 
+                  className="auth-change-phone-btn"
+                >
+                  Đổi Email
+                </button>
+              </div>
+            ) : (
+              <div className="auth-helper-banner">
+                Mã xác thực OTP 6 số đã được gửi tới <strong>{loginEmail}</strong>.
+                <button 
+                  type="button" 
+                  onClick={resetLoginStates} 
+                  className="auth-change-phone-btn"
+                >
+                  Đổi Email
+                </button>
+              </div>
+            )}
             
             <div className="form-group">
               <label className="auth-otp-label">Nhập mã xác thực (OTP)</label>
