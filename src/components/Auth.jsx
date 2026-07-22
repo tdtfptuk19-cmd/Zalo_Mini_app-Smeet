@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Phone, AlertCircle, ArrowRight, ShieldCheck, RefreshCw } from 'lucide-react';
 
 import logo from '../assets/logo.png';
+import { TermsModal } from './TermsModal';
 
 export const Auth = React.memo(({
   loginPhone,
@@ -24,6 +25,8 @@ export const Auth = React.memo(({
   handleRegister,
   resetLoginStates
 }) => {
+  const [showTermsModal, setShowTermsModal] = useState(false);
+
   // Real-time SĐT validation
   const [phoneTouch, setPhoneTouch] = useState(false);
   const isPhoneValid = /^(03|05|07|08|09)\d{8}$/.test(loginPhone);
@@ -341,7 +344,31 @@ export const Auth = React.memo(({
             </button>
           </form>
         )}
+
+        <div style={{ marginTop: '20px', textAlign: 'center', fontSize: '0.78rem', color: 'var(--text-muted, #64748b)' }}>
+          Bằng việc sử dụng Smeet, bạn đồng ý với{' '}
+          <button
+            type="button"
+            onClick={() => setShowTermsModal(true)}
+            style={{
+              background: 'none',
+              border: 'none',
+              color: '#0068FF',
+              textDecoration: 'underline',
+              cursor: 'pointer',
+              padding: 0,
+              font: 'inherit'
+            }}
+          >
+            Điều khoản sử dụng & Bảo mật
+          </button>
+        </div>
       </div>
+
+      <TermsModal 
+        isOpen={showTermsModal} 
+        onClose={() => setShowTermsModal(false)} 
+      />
     </div>
   );
 });

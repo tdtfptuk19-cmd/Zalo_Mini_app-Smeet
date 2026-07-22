@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { Settings, LogOut, Trash2, CheckCircle, Plus, Camera, Send } from 'lucide-react';
+import { Settings, LogOut, Trash2, CheckCircle, Plus, Camera, Send, ShieldCheck, FileText } from 'lucide-react';
 import { Storage } from '../utils/storage';
+import { TermsModal } from './TermsModal';
 
 export const SettingsDrawer = React.memo(({
   isOpen,
@@ -21,6 +22,9 @@ export const SettingsDrawer = React.memo(({
   setAppLanguage,
   triggerNotification
 }) => {
+
+  // Local state for Terms Modal
+  const [showTermsModal, setShowTermsModal] = useState(false);
 
   // Local state for deleting member custom confirmation modal
   const [confirmDeleteMember, setConfirmDeleteMember] = useState(null);
@@ -257,6 +261,26 @@ export const SettingsDrawer = React.memo(({
                   <option value="en">English</option>
                 </select>
               </div>
+
+              <div className="settings-control-row" style={{ marginTop: '12px', paddingTop: '10px', borderTop: '1px dashed var(--border-color, #e2e8f0)' }}>
+                <button 
+                  type="button"
+                  onClick={() => setShowTermsModal(true)}
+                  className="btn btn-secondary"
+                  style={{ 
+                    width: '100%', 
+                    display: 'flex', 
+                    alignItems: 'center', 
+                    justify: 'center', 
+                    gap: '8px',
+                    fontSize: '0.85rem',
+                    padding: '8px 12px'
+                  }}
+                >
+                  <ShieldCheck size={16} color="var(--primary-color, #0068FF)" />
+                  <span>{t('Điều khoản sử dụng & Bảo mật', 'Terms & Privacy Policy')}</span>
+                </button>
+              </div>
             </div>
 
             {/* Bug reporting sub-form */}
@@ -450,6 +474,13 @@ export const SettingsDrawer = React.memo(({
           </div>
         </div>
       )}
+
+      {/* Terms of Use & Privacy Policy Modal */}
+      <TermsModal 
+        isOpen={showTermsModal} 
+        onClose={() => setShowTermsModal(false)} 
+        appLanguage={appLanguage} 
+      />
     </div>
   );
 });

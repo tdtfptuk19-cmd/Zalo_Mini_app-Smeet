@@ -71,37 +71,47 @@ app.get('/terms', (req, res) => {
       <title>Điều Khoản Sử Dụng - Smeet Zalo Mini App</title>
       <style>
         body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; line-height: 1.6; padding: 20px; max-width: 800px; margin: 0 auto; color: #333; }
-        h1 { color: #0068FF; border-bottom: 2px solid #0068FF; padding-bottom: 8px; }
-        h2 { color: #1e293b; margin-top: 24px; }
+        h1 { color: #0068FF; border-bottom: 2px solid #0068FF; padding-bottom: 8px; font-size: 1.6rem; }
+        h2 { color: #1e293b; margin-top: 24px; font-size: 1.15rem; }
         ul { padding-left: 20px; }
+        li { margin-bottom: 6px; }
         .box { background: #f8fafc; border-left: 4px solid #0068FF; padding: 12px 16px; margin: 16px 0; border-radius: 4px; }
+        .contact-box { background: #eff6ff; border: 1px solid #bfdbfe; padding: 12px 16px; border-radius: 6px; margin-top: 12px; }
       </style>
     </head>
     <body>
       <h1>ĐIỀU KHOẢN SỬ DỤNG & CHÍNH SÁCH BẢO MẬT SMEET</h1>
-      <p><em>Cập nhật lần cuối: 21/07/2026</em></p>
+      <p><em>Cập nhật lần cuối: 22/07/2026</em></p>
       
       <div class="box">
-        Ứng dụng <strong>Smeet (Zalo Mini App)</strong> cam kết bảo vệ dữ liệu cá nhân của người dùng tuân thủ theo Quy định của Zalo Developer và Pháp luật Việt Nam.
+        Ứng dụng <strong>Smeet (Zalo Mini App)</strong> cam kết bảo vệ dữ liệu cá nhân của người dùng tuân thủ theo Quy định dành cho Nhà phát triển của Zalo (Zalo Developer Platform Guidelines) và Pháp luật Việt Nam.
       </div>
 
-      <h2>1. Các Dữ Liệu Cá Nhân Được Thu Thập</h2>
-      <p>Để phục vụ tính năng đặt lịch họp nhóm, điểm danh và tóm tắt biên bản cuộc họp, Smeet xin cấp các quyền tối thiểu bao gồm:</p>
+      <h2>1. Các Dữ Liệu Cá Nhân Thu Thập</h2>
+      <p>Smeet xin cấp các quyền và dữ liệu tối thiểu phục vụ cho tính năng đặt lịch họp nhóm, quản lý phòng họp và lưu trữ biên bản cuộc họp:</p>
       <ul>
-        <li><strong>Thông tin tài khoản công khai:</strong> Tên hiển thị, Ảnh đại diện (Avatar), Zalo User ID.</li>
-        <li><strong>Số điện thoại:</strong> Dùng để gửi tin nhắn xác thực OTP và gửi thông báo nhắc lịch họp trước 24h & 30m.</li>
-        <li><strong>Dữ liệu cuộc họp:</strong> Tiêu đề cuộc họp, thời gian, địa điểm, ghi chú và các bản khảo sát do người dùng khởi tạo.</li>
+        <li><strong>Thông tin tài khoản Zalo:</strong> Tên hiển thị, Ảnh đại diện (Avatar), Zalo User ID (khi người dùng đồng ý cấp quyền trên Zalo Mini App SDK).</li>
+        <li><strong>Số điện thoại & Xác thực:</strong> Dùng để xác thực tài khoản, phân quyền vai trò (Quản lý, Ủy quyền, Thành viên) và gửi thông báo nhắc lịch họp.</li>
+        <li><strong>Dữ liệu cuộc họp:</strong> Tiêu đề cuộc họp, thời gian, địa điểm, danh sách thành viên tham gia, nội dung ghi chú và báo cáo biên bản họp do người dùng khởi tạo.</li>
       </ul>
 
       <h2>2. Mục Đích Sử Dụng Dữ Liệu</h2>
       <ul>
-        <li>Xác thực danh tính người dùng khi tham gia vào các phòng họp nhóm.</li>
-        <li>Gửi thông báo nhắc nhở lịch họp qua hệ thống Zalo Notification / SMS.</li>
-        <li>Tổng hợp ghi chú cuộc họp để tạo biên bản tóm tắt tự động.</li>
+        <li>Xác thực danh tính người dùng và phân quyền vai trò khi tham gia các phòng họp nhóm.</li>
+        <li>Gửi thông báo nhắc lịch họp tự động để đảm bảo các thành viên không bỏ lỡ cuộc họp.</li>
+        <li>Lưu trữ và hiển thị danh sách lịch họp, điểm danh và biên bản báo cáo cuộc họp cho nhóm.</li>
+        <li>Tiếp nhận và hỗ trợ xử lý báo cáo sự cố kỹ thuật khi người dùng gửi phản hồi.</li>
       </ul>
 
-      <h2>3. Quyền Rút Đồng Ý & Xóa Dữ Liệu</h2>
-      <p>Người dùng có quyền dừng sử dụng ứng dụng hoặc yêu cầu xóa toàn bộ dữ liệu cá nhân bất kỳ lúc nào bằng cách xóa Mini App Smeet khỏi tài khoản Zalo hoặc liên hệ qua email hỗ trợ: <strong>tthanh241.work@gmail.com</strong>.</p>
+      <h2>3. Cam Kết Bảo Mật</h2>
+      <p>Smeet cam kết <strong>KHÔNG</strong> bán, chia sẻ hoặc tiết lộ thông tin cá nhân của người dùng cho bất kỳ bên thứ ba nào vì mục đích thương mại hoặc quảng cáo.</p>
+
+      <h2>4. Quyền Rút Đồng Ý & Xóa Dữ Liệu</h2>
+      <p>Người dùng có quyền dừng sử dụng ứng dụng bất kỳ lúc nào bằng cách gỡ Mini App Smeet khỏi tài khoản Zalo. Để yêu cầu xóa toàn bộ dữ liệu cá nhân và lịch sử cuộc họp khỏi hệ thống, vui lòng liên hệ:</p>
+      <div class="contact-box">
+        • Email hỗ trợ: <strong>tthanh241.work@gmail.com</strong><br>
+        • Thời gian xử lý yêu cầu xóa dữ liệu: Trong vòng <strong>48 giờ làm việc</strong>.
+      </div>
     </body>
     </html>
   `);
