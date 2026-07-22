@@ -19,13 +19,7 @@ const getTomorrowAtTime = (hours, minutes) => {
   return d.toISOString();
 };
 
-const SEED_USERS = [
-  { id: 'u1', name: 'Nguyễn Văn A', email: 'nguyenvana@gmail.com', phone: '0912345678', role: 'admin', avatar: ZALO_DEFAULT_AVATAR },
-  { id: 'u2', name: 'Trần Thị B', email: 'tranthib@gmail.com', phone: '0987654321', role: 'delegated', avatar: ZALO_DEFAULT_AVATAR, defaultMeet: 'https://meet.google.com/abc-defg-hij' },
-  { id: 'u3', name: 'Lê Văn C', email: 'levanc@gmail.com', phone: '0901234567', role: 'member', avatar: ZALO_DEFAULT_AVATAR },
-  { id: 'u4', name: 'Phạm Văn D', email: 'phamvand@gmail.com', phone: '0934567890', role: 'member', avatar: ZALO_DEFAULT_AVATAR },
-  { id: 'u5', name: 'Hoàng Thị E', email: 'hoangthie@gmail.com', phone: '0971234567', role: 'member', avatar: ZALO_DEFAULT_AVATAR }
-];
+const SEED_USERS = [];
 
 const SEED_MEETINGS = [
   {
@@ -134,8 +128,15 @@ const SEED_NOTIF_CONFIG = {
 // Seed database function
 const seedDatabase = async () => {
   try {
+    // Xóa các user có sẵn nếu còn tồn tại trong DB theo yêu cầu của user
+    const deleteEmails = ['nguyenvana@gmail.com', 'tranthib@gmail.com', 'levanc@gmail.com', 'phamvand@gmail.com', 'hoangthie@gmail.com'];
+    const deleteRes = await User.deleteMany({ email: { $in: deleteEmails } });
+    if (deleteRes.deletedCount > 0) {
+      console.log(`[DB] Deleted ${deleteRes.deletedCount} demo users from database.`);
+    }
+
     const userCount = await User.countDocuments();
-    if (userCount === 0) {
+    if (userCount === 0 && SEED_USERS.length > 0) {
       await User.insertMany(SEED_USERS);
       console.log('[DB] Seeded Users');
     }

@@ -25,12 +25,7 @@ export const Auth = React.memo(({
   const cleanEmail = (loginEmail || '').trim().toLowerCase();
   const isEmailValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanEmail);
 
-  // Demo accounts for instant selection (chips) in browser environment
-  const demoAccounts = [
-    { name: 'Nguyễn Văn A (Host)', email: 'nguyenvana@gmail.com', role: 'admin' },
-    { name: 'Trần Thị B (Ủy quyền)', email: 'tranthib@gmail.com', role: 'delegated' },
-    { name: 'Lê Văn C (Thành viên)', email: 'levanc@gmail.com', role: 'member' }
-  ];
+
 
   return (
     <div className="login-screen-wrapper">
@@ -72,37 +67,7 @@ export const Auth = React.memo(({
               <span>Đăng nhập nhanh qua Zalo</span>
             </button>
 
-            {/* Quick Test Demo Chips for Browser Testing */}
-            <div className="auth-demo-chips-container" style={{ marginTop: '30px' }}>
-              <span className="auth-demo-chips-title">Dùng thử nhanh tài khoản có sẵn (Trình duyệt):</span>
-              <div className="auth-demo-chips-list">
-                {demoAccounts.map((account) => (
-                  <button
-                    key={account.email}
-                    type="button"
-                    className="auth-demo-chip"
-                    onClick={async () => {
-                      try {
-                        const mockUserMap = {
-                          'nguyenvana@gmail.com': { id: 'mock_admin_123', name: 'Nguyễn Văn A (Host)', email: 'nguyenvana@gmail.com', phone: '0912345678', role: 'admin', roles: ['admin'] },
-                          'tranthib@gmail.com': { id: 'mock_delegated_456', name: 'Trần Thị B (Ủy quyền)', email: 'tranthib@gmail.com', phone: '0923456789', role: 'delegated', roles: ['delegated'] },
-                          'levanc@gmail.com': { id: 'mock_member_789', name: 'Lê Văn C (Thành viên)', email: 'levanc@gmail.com', phone: '0934567890', role: 'member', roles: ['member'] }
-                        };
-                        const selectedMock = mockUserMap[account.email];
-                        if (selectedMock) {
-                          await Storage.setLoggedInUser(selectedMock);
-                          window.location.reload();
-                        }
-                      } catch (err) {
-                        setLoginError('Lỗi giả lập: ' + err.message);
-                      }
-                    }}
-                  >
-                    <span>{account.name}</span>
-                  </button>
-                ))}
-              </div>
-            </div>
+
           </div>
         )}
 
