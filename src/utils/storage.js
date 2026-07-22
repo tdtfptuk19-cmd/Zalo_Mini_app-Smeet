@@ -86,7 +86,12 @@ export const Storage = {
   },
   
   saveUser: async (user) => {
-    const res = await safeFetch(`${getApiBase()}/api/users`, {
+    const loggedIn = await Storage.getLoggedInUser();
+    // Nếu chưa đăng nhập hoặc đang tự đăng ký tài khoản mới (user không có id), dùng endpoint /api/auth/register công khai
+    const isSelfRegister = !loggedIn || !loggedIn.id || !user.id;
+    const url = isSelfRegister ? `${getApiBase()}/api/auth/register` : `${getApiBase()}/api/users`;
+
+    const res = await safeFetch(url, {
       method: 'POST',
       body: JSON.stringify(user)
     });

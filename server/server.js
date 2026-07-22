@@ -532,6 +532,41 @@ app.post('/api/auth/verify-email-otp', (req, res) => {
 });
 
 // ─────────────────────────────────────────────────────────────────────
+// 1e. Public User Registration (cho phép người dùng mới tự đăng ký sau khi xác thực OTP)
+// ─────────────────────────────────────────────────────────────────────
+app.post('/api/auth/register', async (req, res) => {
+  const { name, email, phone, role } = req.body;
+  if (!name || !name.trim()) {
+    return res.status(400).json({ error: 'Vui lòng nhập họ và tên.' });
+  }
+
+  const cleanEmail = (email || '').trim().toLowerCase();
+  if (cleanEmail) {
+    const existing = await User.findOne({ email: cleanEmail });
+    if (existing) {
+      return res.status(400).json({ error: 'Email này đã được đăng ký tài khoản.' });
+    }
+  }
+
+  try {
+    const newUser = new User({
+      id: 'u_' + Date.now() + '_' + Math.floor(Math.random() * 1000),
+      name: name.trim(),
+      email: cleanEmail || undefined,
+      phone: (phone || '').trim() || undefined,
+      role: 'member', // Tự đăng ký luôn mang role member
+      avatar: ZALO_DEFAULT_AVATAR
+    });
+    await newUser.save();
+    console.log(`[Register] ✅ Đăng ký tài khoản mới thành công: ${newUser.name} (${newUser.email})`);
+    res.json(newUser);
+  } catch (err) {
+    console.error('[Register Error]:', err);
+    res.status(500).json({ error: 'Không thể tạo tài khoản: ' + err.message });
+  }
+});
+
+// ─────────────────────────────────────────────────────────────────────
 // 2. Users APIs (protected)
 // ─────────────────────────────────────────────────────────────────────
 app.get('/api/users', requireAuth, async (req, res) => {
