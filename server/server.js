@@ -438,6 +438,70 @@ app.get('/api/users/lookup', async (req, res) => {
   }
 });
 
+// Helper gửi email dùng chung (SMTP hoặc Resend API)
+async function sendEmailHelper({ to, subject, html }) {
+  // 1. Ưu tiên gửi qua Resend API nếu có RESEND_API_KEY
+  const resendApiKey = process.env.RESEND_API_KEY;
+  if (resendApiKey && resendApiKey.trim()) {
+    try {
+      const resendRes = await fetch('https://api.resend.com/emails', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${resendApiKey.trim()}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          from: 'Smeet App <onboarding@resend.dev>',
+          to: [to],
+          subject,
+          html
+        })
+      });
+      if (resendRes.ok) {
+        console.log(`[Email] ✅ Gửi thành công tới: ${to} (qua Resend API)`);
+        return { success: true, mode: 'resend' };
+      } else {
+        const errData = await resendRes.json();
+        console.error('[Resend Error]:', errData);
+      }
+    } catch (resendErr) {
+      console.error('[Resend Exception]:', resendErr.message);
+    }
+  }
+
+  // 2. Sử dụng Nodemailer SMTP nếu có EMAIL_USER và EMAIL_PASS
+  const emailUser = process.env.EMAIL_USER;
+  const emailPass = process.env.EMAIL_PASS;
+
+  if (emailUser && emailPass && emailUser.trim() && emailPass.trim()) {
+    try {
+      const transporter = nodemailer.createTransport({
+        service: process.env.EMAIL_SERVICE || 'gmail',
+        auth: {
+          user: emailUser.trim(),
+          pass: emailPass.trim()
+        }
+      });
+
+      await transporter.sendMail({
+        from: `"Smeet App" <${emailUser.trim()}>`,
+        to,
+        subject,
+        html
+      });
+
+      console.log(`[Email] ✅ Gửi thành công tới: ${to} (qua SMTP)`);
+      return { success: true, mode: 'smtp' };
+    } catch (err) {
+      console.error('[Email] ❌ Lỗi gửi email qua SMTP:', err.message);
+      return { success: false, error: err.message };
+    }
+  }
+
+  console.warn('[Email] ⚠️ Chưa cấu hình Email provider. Chạy chế độ mô phỏng.');
+  return { success: false, reason: 'not_configured' };
+}
+
 // ─────────────────────────────────────────────────────────────────────
 // 1c. Send Real Email OTP via Nodemailer / SMTP
 // ─────────────────────────────────────────────────────────────────────
@@ -467,75 +531,18 @@ app.post('/api/auth/send-email-otp', async (req, res) => {
     </div>
   `;
 
-  // 1. Ưu tiên gửi qua Resend API nếu có RESEND_API_KEY
-  const resendApiKey = process.env.RESEND_API_KEY;
-  if (resendApiKey && resendApiKey.trim()) {
-    try {
-      const resendRes = await fetch('https://api.resend.com/emails', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${resendApiKey.trim()}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          from: 'Smeet App <onboarding@resend.dev>',
-          to: [email],
-          subject: `[Smeet] Mã xác thực OTP đăng nhập: ${code}`,
-          html: htmlContent
-        })
-      });
-      if (resendRes.ok) {
-        console.log(`[Email OTP] ✅ Đã gửi mã ${code} tới real email via Resend API: ${email}`);
-        return res.json({
-          success: true,
-          message: `Mã OTP đã gửi đến hộp thư ${email}!`,
-          mode: 'real'
-        });
-      } else {
-        const errData = await resendRes.json();
-        console.error('[Resend Error]:', errData);
-      }
-    } catch (resendErr) {
-      console.error('[Resend Exception]:', resendErr.message);
-    }
-  }
+  const emailRes = await sendEmailHelper({
+    to: email,
+    subject: `[Smeet] Mã xác thực OTP đăng nhập: ${code}`,
+    html: htmlContent
+  });
 
-  // 2. Sử dụng Nodemailer SMTP nếu có EMAIL_USER và EMAIL_PASS
-  const emailUser = process.env.EMAIL_USER;
-  const emailPass = process.env.EMAIL_PASS;
-
-  if (emailUser && emailPass && emailUser.trim() && emailPass.trim()) {
-    try {
-      const transporter = nodemailer.createTransport({
-        service: process.env.EMAIL_SERVICE || 'gmail',
-        auth: {
-          user: emailUser.trim(),
-          pass: emailPass.trim()
-        }
-      });
-
-      await transporter.sendMail({
-        from: `"Smeet App" <${emailUser.trim()}>`,
-        to: email,
-        subject: `[Smeet] Mã xác thực OTP đăng nhập: ${code}`,
-        html: htmlContent
-      });
-
-      console.log(`[Email OTP] ✅ Đã gửi mã ${code} tới real email: ${email}`);
-      return res.json({
-        success: true,
-        message: `Mã OTP đã gửi đến hộp thư ${email}!`,
-        mode: 'real'
-      });
-    } catch (err) {
-      console.error('[Email OTP] ❌ Lỗi gửi email thật:', err.message);
-      return res.json({
-        success: true,
-        message: `Mô phỏng (Lỗi SMTP: ${err.message}) - Mã OTP: ${code}`,
-        code,
-        mode: 'simulated'
-      });
-    }
+  if (emailRes.success) {
+    return res.json({
+      success: true,
+      message: `Mã OTP đã gửi đến hộp thư ${email}!`,
+      mode: 'real'
+    });
   } else {
     console.log(`[Email OTP] ℹ️ (Chế độ mô phỏng) Mã OTP cho ${email} là: ${code}`);
     return res.json({
@@ -544,6 +551,65 @@ app.post('/api/auth/send-email-otp', async (req, res) => {
       code,
       mode: 'simulated'
     });
+  }
+});
+
+// Route mới: Nhận báo cáo sự cố và gửi email về smeetreport@gmail.com
+app.post('/api/reports/bug', async (req, res) => {
+  const { email, name, category, description } = req.body;
+  if (!description || !description.trim()) {
+    return res.status(400).json({ error: 'Thiếu nội dung mô tả sự cố.' });
+  }
+
+  const htmlContent = `
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 24px; border: 1px solid #e2e8f0; border-radius: 12px; background-color: #ffffff;">
+      <h2 style="color: #ef4444; border-bottom: 2px solid #ef4444; padding-bottom: 8px; margin-top: 0;">⚠️ Báo Cáo Sự Cố Mới (Smeet App)</h2>
+      <p style="font-size: 14px; color: #334155;">Hệ thống vừa nhận được phản hồi báo cáo sự cố từ người dùng qua Zalo Mini App.</p>
+      
+      <table style="width: 100%; border-collapse: collapse; margin: 20px 0; font-size: 14px;">
+        <tr>
+          <td style="padding: 8px 0; font-weight: bold; width: 120px; color: #64748b;">Người gửi:</td>
+          <td style="padding: 8px 0; color: #1e293b;">${name || 'Thành viên'}</td>
+        </tr>
+        <tr>
+          <td style="padding: 8px 0; font-weight: bold; color: #64748b;">Email liên hệ:</td>
+          <td style="padding: 8px 0; color: #1e293b;"><a href="mailto:${email || ''}">${email || 'Chưa cung cấp'}</a></td>
+        </tr>
+        <tr>
+          <td style="padding: 8px 0; font-weight: bold; color: #64748b;">Phân loại:</td>
+          <td style="padding: 8px 0; color: #ef4444; font-weight: bold;">${(category || 'ui').toUpperCase()}</td>
+        </tr>
+        <tr>
+          <td style="padding: 8px 0; font-weight: bold; color: #64748b; vertical-align: top;">Chi tiết sự cố:</td>
+          <td style="padding: 8px 0; color: #1e293b; background-color: #f8fafc; border-radius: 6px; padding: 12px; white-space: pre-wrap; border: 1px solid #e2e8f0;">${description}</td>
+        </tr>
+      </table>
+      
+      <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 20px 0;" />
+      <p style="font-size: 12px; color: #94a3b8; text-align: center; margin-bottom: 0;">Email này được gửi tự động từ hệ thống Smeet.</p>
+    </div>
+  `;
+
+  try {
+    const emailRes = await sendEmailHelper({
+      to: 'smeetreport@gmail.com',
+      subject: `[Smeet Bug Report] - Phân loại: ${(category || 'ui').toUpperCase()}`,
+      html: htmlContent
+    });
+
+    if (emailRes.success) {
+      return res.json({ success: true, message: 'Báo cáo sự cố đã được gửi tới email quản trị viên!' });
+    } else {
+      console.log(`[Bug Report] ℹ️ (Mô phỏng) Đã nhận báo cáo sự cố từ ${email || 'guest'}: ${description}`);
+      return res.json({
+        success: true,
+        simulated: true,
+        message: '[Mô phỏng] Đã ghi nhận báo cáo sự cố (do server chưa cấu hình email gửi đi).'
+      });
+    }
+  } catch (err) {
+    console.error('Error sending bug report email:', err);
+    res.status(500).json({ error: 'Không thể gửi email báo cáo sự cố: ' + err.message });
   }
 });
 

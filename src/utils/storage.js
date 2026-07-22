@@ -282,6 +282,14 @@ export const Storage = {
     }
   },
 
+  // Gửi báo cáo sự cố qua API lên backend
+  sendBugReport: async (reportPayload) => {
+    return safeFetch(`${getApiBase()}/api/reports/bug`, {
+      method: 'POST',
+      body: JSON.stringify(reportPayload)
+    });
+  },
+
   // ─── Session / Logged In User ───
   // Session hết hạn sau 3 ngày (tính từ lần đăng nhập gần nhất)
   SESSION_EXPIRY_MS: 3 * 24 * 60 * 60 * 1000, // 3 ngày = 259200000ms

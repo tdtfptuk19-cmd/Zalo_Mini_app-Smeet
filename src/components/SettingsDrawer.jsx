@@ -83,7 +83,7 @@ export const SettingsDrawer = React.memo(({
     }
   };
 
-  const onLocalBugSubmit = (e) => {
+  const onLocalBugSubmit = async (e) => {
     e.preventDefault();
     if (!bugTitle.trim() || !bugContent.trim()) {
       triggerNotification('[Lỗi] Vui lòng điền đầy đủ thông tin báo cáo sự cố!');
@@ -92,24 +92,28 @@ export const SettingsDrawer = React.memo(({
 
     setIsSubmittingBug(true);
 
-    const mailSubject = encodeURIComponent(`[Báo cáo sự cố Smeet] ${bugTitle}`);
-    const mailBody = encodeURIComponent(
-      `Tiêu đề sự cố: ${bugTitle}\n` +
-      `Danh mục: ${bugCategory}\n` +
-      `Người báo cáo: ${currentUser?.name || 'Thành viên'} (${currentUser?.phone || ''})\n` +
-      `Thời gian: ${new Date().toLocaleString('vi-VN')}\n\n` +
-      `Chi tiết lỗi / sự cố:\n${bugContent}`
-    );
-    const mailtoUrl = `mailto:smeetreport@gmail.com?subject=${mailSubject}&body=${mailBody}`;
+    try {
+      const reportPayload = {
+        email: currentUser?.email || '',
+        name: currentUser?.name || 'Thành viên',
+        category: bugCategory,
+        description: `Tiêu đề: ${bugTitle}\nChi tiết sự cố:\n${bugContent}`
+      };
 
-    setTimeout(() => {
+      const res = await Storage.sendBugReport(reportPayload);
+      if (res && res.success) {
+        triggerNotification(`[Hệ thống] Đã gửi báo cáo sự cố thành công tới smeetreport@gmail.com!`);
+        setBugTitle('');
+        setBugContent('');
+        setBugCategory('ui');
+      } else {
+        triggerNotification(`[Lỗi] Không thể gửi báo cáo sự cố qua hệ thống: ${res?.error || 'Lỗi kết nối server'}`);
+      }
+    } catch (err) {
+      triggerNotification(`[Lỗi] Gặp sự cố kết nối: ${err.message}`);
+    } finally {
       setIsSubmittingBug(false);
-      window.location.href = mailtoUrl;
-      triggerNotification(`[Hệ thống] Đã mở ứng dụng Email để gửi sự cố tới smeetreport@gmail.com.`);
-      setBugTitle('');
-      setBugContent('');
-      setBugCategory('ui');
-    }, 500);
+    }
   };
 
   const isAdmin = hasRole(currentUser, 'admin');

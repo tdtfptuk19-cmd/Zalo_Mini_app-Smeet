@@ -36,7 +36,15 @@ function App() {
   });
 
   // Theme, scale & translation states
-  const [isDarkMode, setIsDarkMode] = useState(false);
+  const [isDarkMode, setIsDarkMode] = useState(() => {
+    const saved = localStorage.getItem('smeet_dark_mode');
+    if (saved !== null) return saved === 'true';
+    try {
+      return window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+    } catch {
+      return false;
+    }
+  });
   const [appFontSize, setAppFontSize] = useState('medium'); // small, medium, large
   const [appLanguage, setAppLanguage] = useState('vi'); // vi, en
 
@@ -79,6 +87,7 @@ function App() {
 
   // Sync HTML elements class list for theme changes
   useEffect(() => {
+    localStorage.setItem('smeet_dark_mode', isDarkMode);
     const root = document.getElementById('app');
     const body = document.body;
     const html = document.documentElement;
@@ -118,13 +127,20 @@ function App() {
         const res = await getUserInfo({});
         if (res?.userInfo) {
           const zaloUser = res.userInfo;
-          const authenticatedUser = await Storage.authenticateZalo({
+          const apiRes = await Storage.authenticateZalo({
             id: zaloUser.id,
             name: zaloUser.name,
             avatar: zaloUser.avatar || ZALO_DEFAULT_AVATAR
           });
-          activeUser = authenticatedUser;
-          await Storage.setLoggedInUser(authenticatedUser);
+          if (apiRes && apiRes.needEmailLink) {
+            auth.setZaloTempProfile(apiRes.zaloUser);
+            activeUser = null; // Do not log in, show linking form
+          } else if (apiRes && apiRes.user) {
+            activeUser = apiRes.user;
+            await Storage.setLoggedInUser(activeUser);
+          } else {
+            activeUser = null;
+          }
         }
       } catch (err) {
         console.warn('Failed to fetch Zalo user info, using cached session if available:', err);
