@@ -66,7 +66,7 @@ export const Auth = React.memo(({
               type="button"
               onClick={handleZaloLogin}
               className="btn btn-primary auth-zalo-fast-btn"
-              style={{ width: '100%', padding: '14px', borderRadius: '12px', fontSize: '1rem', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '8px', background: '#0068FF' }}
+              style={{ width: '100%', padding: '14px', borderRadius: '12px', fontSize: '1rem', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '8px', background: '#0068FF', color: '#ffffff' }}
             >
               <Sparkles size={18} color="#ffffff" />
               <span>Đăng nhập nhanh qua Zalo</span>
