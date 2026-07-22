@@ -20,11 +20,11 @@ const getTomorrowAtTime = (hours, minutes) => {
 };
 
 const SEED_USERS = [
-  { id: 'u1', name: 'Nguyễn Văn A', phone: '0912345678', role: 'admin', avatar: ZALO_DEFAULT_AVATAR },
-  { id: 'u2', name: 'Trần Thị B', phone: '0987654321', role: 'delegated', avatar: ZALO_DEFAULT_AVATAR, defaultMeet: 'https://meet.google.com/abc-defg-hij' },
-  { id: 'u3', name: 'Lê Văn C', phone: '0901234567', role: 'member', avatar: ZALO_DEFAULT_AVATAR },
-  { id: 'u4', name: 'Phạm Văn D', phone: '0934567890', role: 'member', avatar: ZALO_DEFAULT_AVATAR },
-  { id: 'u5', name: 'Hoàng Thị E', phone: '0971234567', role: 'member', avatar: ZALO_DEFAULT_AVATAR }
+  { id: 'u1', name: 'Nguyễn Văn A', email: 'nguyenvana@gmail.com', phone: '0912345678', role: 'admin', avatar: ZALO_DEFAULT_AVATAR },
+  { id: 'u2', name: 'Trần Thị B', email: 'tranthib@gmail.com', phone: '0987654321', role: 'delegated', avatar: ZALO_DEFAULT_AVATAR, defaultMeet: 'https://meet.google.com/abc-defg-hij' },
+  { id: 'u3', name: 'Lê Văn C', email: 'levanc@gmail.com', phone: '0901234567', role: 'member', avatar: ZALO_DEFAULT_AVATAR },
+  { id: 'u4', name: 'Phạm Văn D', email: 'phamvand@gmail.com', phone: '0934567890', role: 'member', avatar: ZALO_DEFAULT_AVATAR },
+  { id: 'u5', name: 'Hoàng Thị E', email: 'hoangthie@gmail.com', phone: '0971234567', role: 'member', avatar: ZALO_DEFAULT_AVATAR }
 ];
 
 const SEED_MEETINGS = [

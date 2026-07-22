@@ -109,10 +109,32 @@ export const Storage = {
   },
 
   // Public lookup for OTP login (no session required)
+  sendEmailOtp: async (email) => {
+    const res = await safeFetch(`${getApiBase()}/api/auth/send-email-otp`, {
+      method: 'POST',
+      body: JSON.stringify({ email })
+    });
+    return res.json();
+  },
+
+  verifyEmailOtp: async (email, otp) => {
+    const res = await safeFetch(`${getApiBase()}/api/auth/verify-email-otp`, {
+      method: 'POST',
+      body: JSON.stringify({ email, otp })
+    });
+    return res.json();
+  },
+
+  lookupUsersByEmail: async (email) => {
+    const res = await safeFetch(`${getApiBase()}/api/users/lookup?email=${encodeURIComponent(email)}`);
+    return res.json();
+  },
+
   lookupUsersByPhone: async (phone) => {
     const res = await safeFetch(`${getApiBase()}/api/users/lookup?phone=${encodeURIComponent(phone)}`);
     return res.json();
   },
+
 
   // ─── Meetings APIs ───
   getMeetings: async () => {

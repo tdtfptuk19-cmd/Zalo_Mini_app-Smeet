@@ -3,6 +3,7 @@ import cors from 'cors';
 import dotenv from 'dotenv';
 import https from 'https';
 import http from 'http';
+import nodemailer from 'nodemailer';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { db } from './db.js';
 import { User, Meeting, Note, Poll, Report, NotifConfig } from './models/Schemas.js';
@@ -365,22 +366,169 @@ app.post('/api/auth/zalo', async (req, res) => {
 });
 
 // ─────────────────────────────────────────────────────────────────────
-// 1b. Public user lookup by phone (for OTP login before session exists)
+// 1b. Public user lookup by email or phone (for OTP login before session exists)
 // ─────────────────────────────────────────────────────────────────────
-app.get('/api/users/lookup', async (req, res) => {
-  const phone = (req.query.phone || '').trim();
-  const phoneRegex = /^(03|05|07|08|09)\d{8}$/;
+const EMAIL_OTP_CACHE = new Map();
 
-  if (!phoneRegex.test(phone)) {
-    return res.status(400).json({ error: 'Số điện thoại không hợp lệ.' });
+app.get('/api/users/lookup', async (req, res) => {
+  const email = (req.query.email || '').trim().toLowerCase();
+  const phone = (req.query.phone || '').trim();
+
+  let query = {};
+  if (email) {
+    query.email = { $regex: new RegExp(`^${email}$`, 'i') };
+  } else if (phone) {
+    query.phone = phone;
+  } else {
+    return res.status(400).json({ error: 'Vui lòng cung cấp email hoặc số điện thoại để tra cứu.' });
   }
 
   try {
-    const users = await User.find({ phone }).select('id name phone role avatar defaultMeet -_id');
+    const users = await User.find(query).select('id name email phone role avatar defaultMeet -_id');
     res.json(users);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
+});
+
+// ─────────────────────────────────────────────────────────────────────
+// 1c. Send Real Email OTP via Nodemailer / SMTP
+// ─────────────────────────────────────────────────────────────────────
+app.post('/api/auth/send-email-otp', async (req, res) => {
+  const email = (req.body.email || '').trim().toLowerCase();
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+  if (!emailRegex.test(email)) {
+    return res.status(400).json({ error: 'Địa chỉ email không đúng định dạng.' });
+  }
+
+  const code = Math.floor(100000 + Math.random() * 900000).toString();
+  const expiresAt = Date.now() + 5 * 60 * 1000;
+
+  EMAIL_OTP_CACHE.set(email, { code, expiresAt });
+
+  const htmlContent = `
+    <div style="font-family: Arial, sans-serif; max-width: 500px; margin: 0 auto; padding: 24px; border: 1px solid #e2e8f0; border-radius: 12px; background-color: #ffffff;">
+      <h2 style="color: #0068ff; text-align: center; margin-bottom: 8px;">Smeet Zalo Mini App</h2>
+      <p style="text-align: center; color: #64748b; font-size: 14px; margin-top: 0;">Mã xác thực đăng nhập (OTP)</p>
+      <div style="background-color: #f0f7ff; padding: 16px; border-radius: 8px; text-align: center; margin: 20px 0;">
+        <span style="font-size: 32px; font-weight: bold; letter-spacing: 6px; color: #0068ff;">${code}</span>
+      </div>
+      <p style="color: #334155; font-size: 14px; text-align: center;">Mã xác thực có hiệu lực trong <strong>5 phút</strong>. Vui lòng không chia sẻ mã này với bất kỳ ai.</p>
+      <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 20px 0;" />
+      <p style="font-size: 12px; color: #94a3b8; text-align: center;">Nếu bạn không yêu cầu mã này, vui lòng bỏ qua email này.</p>
+    </div>
+  `;
+
+  // 1. Ưu tiên gửi qua Resend API nếu có RESEND_API_KEY
+  const resendApiKey = process.env.RESEND_API_KEY;
+  if (resendApiKey && resendApiKey.trim()) {
+    try {
+      const resendRes = await fetch('https://api.resend.com/emails', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${resendApiKey.trim()}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          from: 'Smeet App <onboarding@resend.dev>',
+          to: [email],
+          subject: `[Smeet] Mã xác thực OTP đăng nhập: ${code}`,
+          html: htmlContent
+        })
+      });
+      if (resendRes.ok) {
+        console.log(`[Email OTP] ✅ Đã gửi mã ${code} tới real email via Resend API: ${email}`);
+        return res.json({
+          success: true,
+          message: `Mã OTP đã gửi đến hộp thư ${email}!`,
+          mode: 'real'
+        });
+      } else {
+        const errData = await resendRes.json();
+        console.error('[Resend Error]:', errData);
+      }
+    } catch (resendErr) {
+      console.error('[Resend Exception]:', resendErr.message);
+    }
+  }
+
+  // 2. Sử dụng Nodemailer SMTP nếu có EMAIL_USER và EMAIL_PASS
+  const emailUser = process.env.EMAIL_USER;
+  const emailPass = process.env.EMAIL_PASS;
+
+  if (emailUser && emailPass && emailUser.trim() && emailPass.trim()) {
+    try {
+      const transporter = nodemailer.createTransport({
+        service: process.env.EMAIL_SERVICE || 'gmail',
+        auth: {
+          user: emailUser.trim(),
+          pass: emailPass.trim()
+        }
+      });
+
+      await transporter.sendMail({
+        from: `"Smeet App" <${emailUser.trim()}>`,
+        to: email,
+        subject: `[Smeet] Mã xác thực OTP đăng nhập: ${code}`,
+        html: htmlContent
+      });
+
+      console.log(`[Email OTP] ✅ Đã gửi mã ${code} tới real email: ${email}`);
+      return res.json({
+        success: true,
+        message: `Mã OTP đã gửi đến hộp thư ${email}!`,
+        mode: 'real'
+      });
+    } catch (err) {
+      console.error('[Email OTP] ❌ Lỗi gửi email thật:', err.message);
+      return res.json({
+        success: true,
+        message: `Mô phỏng (Lỗi SMTP: ${err.message}) - Mã OTP: ${code}`,
+        code,
+        mode: 'simulated'
+      });
+    }
+  } else {
+    console.log(`[Email OTP] ℹ️ (Chế độ mô phỏng) Mã OTP cho ${email} là: ${code}`);
+    return res.json({
+      success: true,
+      message: `[Mô phỏng] Mã OTP của bạn là ${code}. (Để gửi email thật, cài RESEND_API_KEY hoặc EMAIL_USER/EMAIL_PASS trong server/.env)`,
+      code,
+      mode: 'simulated'
+    });
+  }
+});
+
+// ─────────────────────────────────────────────────────────────────────
+// 1d. Verify Email OTP (server-side check against EMAIL_OTP_CACHE)
+// ─────────────────────────────────────────────────────────────────────
+app.post('/api/auth/verify-email-otp', (req, res) => {
+  const email = (req.body.email || '').trim().toLowerCase();
+  const otp = (req.body.otp || '').trim();
+
+  if (!email || !otp) {
+    return res.status(400).json({ error: 'Thiếu email hoặc mã OTP.' });
+  }
+
+  const cached = EMAIL_OTP_CACHE.get(email);
+  if (!cached) {
+    return res.status(400).json({ error: 'Không tìm thấy mã OTP cho email này. Vui lòng yêu cầu gửi lại.' });
+  }
+
+  if (Date.now() > cached.expiresAt) {
+    EMAIL_OTP_CACHE.delete(email);
+    return res.status(400).json({ error: 'Mã OTP đã hết hạn. Vui lòng yêu cầu gửi lại.' });
+  }
+
+  if (otp !== cached.code) {
+    return res.status(400).json({ error: 'Mã OTP không chính xác. Vui lòng kiểm tra lại.' });
+  }
+
+  // OTP hợp lệ — xóa khỏi cache để tránh tái sử dụng
+  EMAIL_OTP_CACHE.delete(email);
+  console.log(`[Verify OTP] ✅ OTP xác thực thành công cho: ${email}`);
+  return res.json({ success: true, message: 'Xác thực OTP thành công.' });
 });
 
 // ─────────────────────────────────────────────────────────────────────
@@ -913,6 +1061,74 @@ app.post('/api/notify/run-check', requireAuth, async (req, res) => {
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
+});
+
+// ─────────────────────────────────────────────────────────────────────
+// 13. Zalo Webhook Endpoint (cho Zalo Mini App console verification)
+// ─────────────────────────────────────────────────────────────────────
+app.all('/api/zalo/webhook', (req, res) => {
+  console.log('[Zalo Webhook] Received webhook ping/event:', req.body || req.query);
+  res.status(200).json({
+    status: 'success',
+    message: 'Zalo Webhook is active and verified.',
+    timestamp: new Date().toISOString()
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────
+// 14. Terms of Service & Privacy Policy Web Pages (đáp ứng điều kiện Duyệt App)
+// ─────────────────────────────────────────────────────────────────────
+const TERMS_HTML = `<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Điều khoản sử dụng & Chính sách bảo mật - Smeet Zalo Mini App</title>
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; line-height: 1.6; color: #1e293b; max-width: 800px; margin: 0 auto; padding: 24px 16px; background-color: #f8fafc; }
+    .card { background: #ffffff; padding: 32px; border-radius: 16px; box-shadow: 0 4px 20px rgba(0,0,0,0.05); border: 1px solid #e2e8f0; }
+    h1 { color: #0068ff; font-size: 24px; border-bottom: 2px solid #e2e8f0; padding-bottom: 12px; }
+    h2 { color: #0f172a; font-size: 18px; margin-top: 24px; }
+    p, li { font-size: 15px; color: #334155; }
+    ul { padding-left: 20px; }
+    .footer { margin-top: 32px; font-size: 13px; color: #64748b; text-align: center; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>Điều Khoản Sử Dụng & Chính Sách Bảo Mật — Smeet</h1>
+    <p><em>Cập nhật gần nhất: 22/07/2026</em></p>
+    
+    <h2>1. Giới thiệu ứng dụng Smeet</h2>
+    <p>Smeet là ứng dụng Zalo Mini App cung cấp giải pháp đặt lịch họp, quản lý cuộc họp nhóm và tự động tóm tắt biên bản báo cáo bằng trí tuệ nhân tạo (AI).</p>
+    
+    <h2>2. Thu thập và Sử dụng Thông tin Cá nhân</h2>
+    <p>Để vận hành ứng dụng và cung cấp dịch vụ tốt nhất, Smeet thu thập các thông tin tối thiểu sau từ tài khoản Zalo khi được sự đồng ý của người dùng:</p>
+    <ul>
+      <li><strong>Thông tin hồ sơ:</strong> Họ và tên, ảnh đại diện (avatar) và Zalo User ID nhằm hiển thị thành viên trong phòng họp.</li>
+      <li><strong>Địa chỉ Email & Số điện thoại:</strong> Dùng để gửi mã xác thực OTP đăng nhập, thông báo nhắc nhở lịch họp và báo cáo AI.</li>
+      <li><strong>Nội dung ghi chú cuộc họp:</strong> Dùng để lưu trữ biên bản làm việc nhóm và truyền tới mô hình AI để tự động tạo báo cáo tóm tắt.</li>
+    </ul>
+
+    <h2>3. Cam kết Bảo mật Dữ liệu</h2>
+    <ul>
+      <li>Dữ liệu cá nhân và nội dung cuộc họp của bạn được mã hóa an toàn trên hệ thống cơ sở dữ liệu.</li>
+      <li>Chúng tôi cam kết <strong>không bao giờ chia sẻ, bán hoặc chuyển giao</strong> thông tin người dùng cho bên thứ ba vì mục đích thương mại.</li>
+    </ul>
+
+    <h2>4. Quyền Hủy Đồng ý và Xóa Dữ liệu</h2>
+    <p>Người dùng có toàn quyền hủy bỏ sự đồng ý cấp quyền hoặc yêu cầu xóa dữ liệu bất kỳ lúc nào bằng cách xóa ứng dụng Smeet khỏi Zalo hoặc liên hệ quản trị viên qua email: <strong>smeetreport@gmail.com</strong>.</p>
+    
+    <div class="footer">
+      &copy; 2026 Smeet Zalo Mini App. Tất cả các quyền được bảo lưu.
+    </div>
+  </div>
+</body>
+</html>`;
+
+app.get(['/terms', '/terms.html', '/privacy', '/privacy.html'], (req, res) => {
+  res.setHeader('Content-Type', 'text/html; charset=utf-8');
+  res.send(TERMS_HTML);
 });
 
 // Only run listen in non-production or non-serverless environment

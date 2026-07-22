@@ -99,12 +99,12 @@ export const SettingsDrawer = React.memo(({
       `Thời gian: ${new Date().toLocaleString('vi-VN')}\n\n` +
       `Chi tiết lỗi / sự cố:\n${bugContent}`
     );
-    const mailtoUrl = `mailto:tthanh241.work@gmail.com?subject=${mailSubject}&body=${mailBody}`;
+    const mailtoUrl = `mailto:smeetreport@gmail.com?subject=${mailSubject}&body=${mailBody}`;
 
     setTimeout(() => {
       setIsSubmittingBug(false);
       window.location.href = mailtoUrl;
-      triggerNotification(`[Hệ thống] Đã mở ứng dụng Email để gửi sự cố tới tthanh241.work@gmail.com.`);
+      triggerNotification(`[Hệ thống] Đã mở ứng dụng Email để gửi sự cố tới smeetreport@gmail.com.`);
       setBugTitle('');
       setBugContent('');
       setBugCategory('ui');

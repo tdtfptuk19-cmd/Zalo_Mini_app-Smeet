@@ -3,15 +3,15 @@ import { Storage } from '../utils/storage';
 import { requestNotificationPermission } from '../utils/notificationHelper';
 
 // ─────────────────────────────────────────────────────────────────────
-// Cấu hình: đóng/mở tự đăng ký tài khoản mới
-// Khi REGISTRATION_OPEN = false: chỉ admin mới thêm được thành viên
+// Cấu hình: đóng/mở tự đăng ký tài khoản mới (True = tự do đăng ký kiểu App hiện đại)
 // ─────────────────────────────────────────────────────────────────────
-const REGISTRATION_OPEN = false;
+const REGISTRATION_OPEN = true;
 const OTP_EXPIRY_SECONDS = 300; // 5 phút
 
 export function useAuth(triggerNotification) {
   const [currentUser, setCurrentUser] = useState(null);
   const [users, setUsers] = useState([]);
+  const [loginEmail, setLoginEmail] = useState('');
   const [loginPhone, setLoginPhone] = useState('');
   const [otpSent, setOtpSent] = useState(false);
   const [loginOtp, setLoginOtp] = useState('');
@@ -21,6 +21,7 @@ export function useAuth(triggerNotification) {
   const [registerName, setRegisterName] = useState('');
   const [registerRole, setRegisterRole] = useState('member');
   const [loginError, setLoginError] = useState('');
+  const [loginEmailMatchedUsers, setLoginEmailMatchedUsers] = useState([]);
   const [loginPhoneMatchedUsers, setLoginPhoneMatchedUsers] = useState([]);
   const [isSelectingAccount, setIsSelectingAccount] = useState(false);
   const [personalPhone, setPersonalPhone] = useState('');
@@ -28,7 +29,8 @@ export function useAuth(triggerNotification) {
   const [isAvatarModalOpen, setIsAvatarModalOpen] = useState(false);
 
   // Ref giữ OTP và thời hạn để kiểm tra chính xác khi verify
-  const otpRef = useRef({ code: '', expiresAt: 0 });
+  // mode: 'real' = OTP gửi qua email thật (verify phía server), 'simulated' = OTP giả (verify local)
+  const otpRef = useRef({ code: '', expiresAt: 0, mode: 'simulated' });
 
   // Load initial data (only when user is authenticated)
   const initUsers = useCallback(async () => {
@@ -75,65 +77,144 @@ export function useAuth(triggerNotification) {
     return null;
   };
 
-  const handleSendOtp = (phoneNum) => {
+  const [matchedUserPreview, setMatchedUserPreview] = useState(null);
+  const [isCheckingEmail, setIsCheckingEmail] = useState(false);
+
+  const handleSendOtp = async (emailTarget) => {
     setLoginError('');
-    const phoneRegex = /^(03|05|07|08|09)\d{8}$/;
-    if (!phoneRegex.test(phoneNum)) {
-      setLoginError('Số điện thoại không hợp lệ! Vui lòng nhập số điện thoại Việt Nam gồm 10 chữ số (đầu số 03, 05, 07, 08, 09).');
+    const targetEmail = (emailTarget || loginEmail).trim().toLowerCase();
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(targetEmail)) {
+      setLoginError('Email không hợp lệ! Vui lòng kiểm tra lại địa chỉ email (ví dụ: user@example.com).');
       return false;
     }
 
-    const code = Math.floor(100000 + Math.random() * 900000).toString();
-    const expiresAt = Date.now() + OTP_EXPIRY_SECONDS * 1000;
+    try {
+      const res = await Storage.sendEmailOtp(targetEmail);
+      const expiresAt = Date.now() + OTP_EXPIRY_SECONDS * 1000;
 
-    // Lưu vào ref để kiểm tra không bị stale closure
-    otpRef.current = { code, expiresAt };
-    setSimulatedOtp(code);
-    setOtpExpiresAt(expiresAt);
-    setOtpSent(true);
+      if (res && res.mode === 'real') {
+        // Email thật đã gửi — OTP nằm ở server, verify sẽ gọi server
+        otpRef.current = { code: '', expiresAt, mode: 'real' };
+        setSimulatedOtp('');
+        setOtpExpiresAt(expiresAt);
+        setOtpSent(true);
+        triggerNotification(`[Email OTP] Mã xác thực 6 số đã được gửi tới hòm thư ${targetEmail}. Vui lòng kiểm tra Inbox/Spam.`);
+      } else {
+        // Chế độ mô phỏng — OTP trả về trong res.code
+        const code = res.code || Math.floor(100000 + Math.random() * 900000).toString();
+        otpRef.current = { code, expiresAt, mode: 'simulated' };
+        setSimulatedOtp(code);
+        setOtpExpiresAt(expiresAt);
+        setOtpSent(true);
+        triggerNotification(`[Email OTP] Mã xác thực 6 số đã được gửi tới hòm thư ${targetEmail}. Vui lòng kiểm tra Hộp thư đến.`);
+      }
+      return true;
+    } catch (err) {
+      console.warn("Failed calling sendEmailOtp backend:", err);
+      // Không giả thành công — hiển thị lỗi rõ ràng để người dùng biết
+      setLoginError(
+        `Không thể gửi mã OTP. Backend Server chưa sẵn sàng hoặc mạng bị gián đoạn. ` +
+        `Vui lòng kiểm tra cài đặt API URL trong ⚙️ Cài đặt, hoặc thử lại sau.`
+      );
+      return false;
+    }
+  };
 
-    triggerNotification(`[OTP Đăng nhập] Mã xác thực của bạn là ${code}. Có hiệu lực trong 5 phút.`);
-    return true;
+  // Modern smart step 1: Check Email existence and route user automatically
+  const handleCheckEmailAndSendOtp = async (emailTarget) => {
+    setLoginError('');
+    const targetEmail = (emailTarget || loginEmail).trim().toLowerCase();
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    
+    if (!emailRegex.test(targetEmail)) {
+      setLoginError('Email không hợp lệ! Vui lòng nhập đúng định dạng (ví dụ: user@example.com).');
+      return false;
+    }
+
+    setIsCheckingEmail(true);
+    setLoginEmail(targetEmail);
+
+    try {
+      let matched = await Storage.lookupUsersByEmail(targetEmail);
+      if ((!matched || matched.length === 0) && /^\d+$/.test(targetEmail)) {
+        matched = await Storage.lookupUsersByPhone(targetEmail);
+      }
+
+      setIsCheckingEmail(false);
+
+      if (matched && matched.length > 1) {
+        setLoginEmailMatchedUsers(matched);
+        setIsSelectingAccount(true);
+        return true;
+      } else if (matched && matched.length === 1) {
+        setMatchedUserPreview(matched[0]);
+        setIsRegistering(false);
+        return await handleSendOtp(targetEmail);
+      } else {
+        // New user! Transition to register details screen
+        setMatchedUserPreview(null);
+        setIsRegistering(true);
+        return true;
+      }
+    } catch (err) {
+      setIsCheckingEmail(false);
+      // If error or backend offline, fallback to direct OTP flow
+      return await handleSendOtp(targetEmail);
+    }
   };
 
   const handleVerifyOtp = async (otp) => {
     setLoginError('');
+    const targetEmail = loginEmail.trim().toLowerCase();
 
-    // Kiểm tra OTP hết hạn chưa
+    // Kiểm tra OTP hết hạn (kiểm tra client-side nhanh)
     if (Date.now() > otpRef.current.expiresAt) {
       setLoginError('Mã OTP đã hết hạn! Vui lòng nhấn "Gửi lại mã" để nhận mã mới.');
       return false;
     }
 
-    if (otp !== otpRef.current.code) {
-      setLoginError('Mã OTP không chính xác! Vui lòng kiểm tra lại thông báo ở đầu trang.');
-      return false;
+    if (otpRef.current.mode === 'real') {
+      // Verify OTP qua server (OTP thật đã gửi qua email)
+      try {
+        const verifyRes = await Storage.verifyEmailOtp(targetEmail, otp);
+        if (!verifyRes.success) {
+          setLoginError(verifyRes.error || 'Mã OTP không chính xác. Vui lòng kiểm tra email và thử lại.');
+          return false;
+        }
+      } catch (err) {
+        setLoginError('Không thể xác minh mã OTP. Vui lòng thử lại.');
+        return false;
+      }
+    } else {
+      // Chế độ mô phỏng — so sánh local
+      if (otp !== otpRef.current.code) {
+        setLoginError('Mã OTP không chính xác! Vui lòng kiểm tra lại thông báo ở đầu trang.');
+        return false;
+      }
     }
 
     let matchedUsers = [];
     try {
-      matchedUsers = await Storage.lookupUsersByPhone(loginPhone);
+      matchedUsers = await Storage.lookupUsersByEmail(targetEmail);
+      if ((!matchedUsers || matchedUsers.length === 0) && /^\d+$/.test(targetEmail)) {
+        matchedUsers = await Storage.lookupUsersByPhone(targetEmail);
+      }
     } catch (err) {
       setLoginError(err.message || 'Không thể tra cứu tài khoản. Vui lòng thử lại.');
       return false;
     }
 
     if (matchedUsers.length > 1) {
-      setLoginPhoneMatchedUsers(matchedUsers);
+      setLoginEmailMatchedUsers(matchedUsers);
       setIsSelectingAccount(true);
     } else if (matchedUsers.length === 1) {
       const targetUser = matchedUsers[0];
       setCurrentUser(targetUser);
       await Storage.setLoggedInUser(targetUser);
       resetLoginStates();
-      // Xin quyền thông báo nổi hệ thống ngay khi đăng nhập thành công (chế độ im lặng)
       setTimeout(() => requestNotificationPermission(true), 500);
     } else {
-      // Số điện thoại chưa đăng ký
-      if (!REGISTRATION_OPEN) {
-        setLoginError('Số điện thoại này chưa được đăng ký trong hệ thống. Vui lòng liên hệ quản trị viên để được thêm vào hệ thống.');
-        return false;
-      }
       setIsRegistering(true);
     }
     return true;
@@ -164,7 +245,8 @@ export function useAuth(triggerNotification) {
     try {
       const newUser = {
         name: name.trim(),
-        phone: loginPhone,
+        email: loginEmail.trim().toLowerCase(),
+        phone: loginPhone || '',
         role: 'member' // Tự đăng ký chỉ được role 'member'
       };
 
@@ -184,16 +266,20 @@ export function useAuth(triggerNotification) {
   };
 
   const resetLoginStates = () => {
+    setLoginEmail('');
     setLoginPhone('');
     setOtpSent(false);
     setLoginOtp('');
     setSimulatedOtp('');
     setOtpExpiresAt(null);
+    setMatchedUserPreview(null);
+    setIsCheckingEmail(false);
     otpRef.current = { code: '', expiresAt: 0 };
     setIsRegistering(false);
     setRegisterName('');
     setRegisterRole('member');
     setLoginError('');
+    setLoginEmailMatchedUsers([]);
     setLoginPhoneMatchedUsers([]);
     setIsSelectingAccount(false);
   };
@@ -287,6 +373,8 @@ export function useAuth(triggerNotification) {
     currentUser,
     setCurrentUser,
     users,
+    loginEmail,
+    setLoginEmail,
     loginPhone,
     setLoginPhone,
     otpSent,
@@ -303,6 +391,7 @@ export function useAuth(triggerNotification) {
     setRegisterRole,
     loginError,
     setLoginError,
+    loginEmailMatchedUsers,
     loginPhoneMatchedUsers,
     isSelectingAccount,
     setIsSelectingAccount,
@@ -314,7 +403,9 @@ export function useAuth(triggerNotification) {
     setIsAvatarModalOpen,
     initUsers,
     refreshUsers,
-    handleUserChange,
+    matchedUserPreview,
+    isCheckingEmail,
+    handleCheckEmailAndSendOtp,
     handleSendOtp,
     handleVerifyOtp,
     handleSelectAccount,

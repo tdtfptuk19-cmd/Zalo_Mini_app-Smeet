@@ -197,6 +197,8 @@ function App() {
       {auth.currentUser === null ? (
         <Auth
           users={auth.users}
+          loginEmail={auth.loginEmail}
+          setLoginEmail={auth.setLoginEmail}
           loginPhone={auth.loginPhone}
           setLoginPhone={auth.setLoginPhone}
           otpSent={auth.otpSent}
@@ -211,9 +213,13 @@ function App() {
           setRegisterRole={auth.setRegisterRole}
           loginError={auth.loginError}
           setLoginError={auth.setLoginError}
+          loginEmailMatchedUsers={auth.loginEmailMatchedUsers}
           loginPhoneMatchedUsers={auth.loginPhoneMatchedUsers}
           isSelectingAccount={auth.isSelectingAccount}
           setIsSelectingAccount={auth.setIsSelectingAccount}
+          matchedUserPreview={auth.matchedUserPreview}
+          isCheckingEmail={auth.isCheckingEmail}
+          handleCheckEmailAndSendOtp={auth.handleCheckEmailAndSendOtp}
           handleSendOtp={auth.handleSendOtp}
           handleVerifyOtp={auth.handleVerifyOtp}
           handleSelectAccount={auth.handleSelectAccount}

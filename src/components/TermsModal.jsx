@@ -114,7 +114,7 @@ export const TermsModal = React.memo(({ isOpen, onClose }) => {
             Người dùng có quyền dừng sử dụng ứng dụng bất kỳ lúc nào bằng cách gỡ Mini App Smeet khỏi tài khoản Zalo. Để yêu cầu xóa toàn bộ dữ liệu cá nhân và lịch sử cuộc họp khỏi hệ thống, vui lòng liên hệ:
           </p>
           <div style={{ background: '#eff6ff', border: '1px solid #bfdbfe', padding: '12px 16px', borderRadius: '6px', marginTop: '8px' }}>
-            • Email hỗ trợ: <strong>tthanh241.work@gmail.com</strong><br />
+            • Email hỗ trợ: <strong>smeetreport@gmail.com</strong><br />
             • Thời gian xử lý yêu cầu xóa dữ liệu: Trong vòng <strong>48 giờ làm việc</strong>.
           </div>
         </div>

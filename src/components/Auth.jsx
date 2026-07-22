@@ -1,24 +1,35 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Phone, AlertCircle, ArrowRight, ShieldCheck, RefreshCw } from 'lucide-react';
-
+import { Mail, AlertCircle, ArrowRight, ShieldCheck, RefreshCw, UserCheck, Sparkles, Check } from 'lucide-react';
 import logo from '../assets/logo.png';
 import { TermsModal } from './TermsModal';
+import { authorize, getUserInfo } from 'zmp-sdk/apis';
+import { Storage } from '../utils/storage';
 
 export const Auth = React.memo(({
+  users,
+  loginEmail,
+  setLoginEmail,
   loginPhone,
   setLoginPhone,
   otpSent,
+  setOtpSent,
   loginOtp,
   setLoginOtp,
   isRegistering,
+  setIsRegistering,
   registerName,
   setRegisterName,
   registerRole,
   setRegisterRole,
   loginError,
   setLoginError,
+  loginEmailMatchedUsers,
   loginPhoneMatchedUsers,
   isSelectingAccount,
+  setIsSelectingAccount,
+  matchedUserPreview,
+  isCheckingEmail,
+  handleCheckEmailAndSendOtp,
   handleSendOtp,
   handleVerifyOtp,
   handleSelectAccount,
@@ -27,9 +38,10 @@ export const Auth = React.memo(({
 }) => {
   const [showTermsModal, setShowTermsModal] = useState(false);
 
-  // Real-time SĐT validation
-  const [phoneTouch, setPhoneTouch] = useState(false);
-  const isPhoneValid = /^(03|05|07|08|09)\d{8}$/.test(loginPhone);
+  // Email Validation
+  const [emailTouch, setEmailTouch] = useState(false);
+  const cleanEmail = (loginEmail || '').trim().toLowerCase();
+  const isEmailValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanEmail);
 
   // OTP Countdown timer states (300 seconds = 5 minutes)
   const [countdown, setCountdown] = useState(300);
@@ -39,6 +51,13 @@ export const Auth = React.memo(({
   const otpLength = 6;
   const [otpBoxes, setOtpBoxes] = useState(Array(otpLength).fill(''));
   const inputRefs = useRef([]);
+
+  // Demo accounts for instant selection (chips)
+  const demoAccounts = [
+    { name: 'Nguyễn Văn A (Host)', email: 'nguyenvana@gmail.com', role: 'admin' },
+    { name: 'Trần Thị B (Ủy quyền)', email: 'tranthib@gmail.com', role: 'delegated' },
+    { name: 'Lê Văn C (Thành viên)', email: 'levanc@gmail.com', role: 'member' }
+  ];
 
   // Sync state loginOtp when boxes change
   useEffect(() => {
@@ -65,7 +84,6 @@ export const Auth = React.memo(({
     };
   }, [otpSent, isSelectingAccount, isRegistering]);
 
-  // Format timer MM:SS
   const formatTime = (secs) => {
     const mins = Math.floor(secs / 60);
     const s = secs % 60;
@@ -76,7 +94,6 @@ export const Auth = React.memo(({
     const cleanValue = value.replace(/\D/g, '');
     const nextBoxes = [...otpBoxes];
     
-    // Support paste or single char input
     if (cleanValue.length > 1) {
       const chars = cleanValue.split('').slice(0, otpLength - idx);
       chars.forEach((char, i) => {
@@ -103,17 +120,17 @@ export const Auth = React.memo(({
   const handleResendOtpClick = () => {
     if (countdown === 0) {
       setOtpBoxes(Array(otpLength).fill(''));
-      handleSendOtp(loginPhone);
+      handleSendOtp(loginEmail);
     }
   };
 
-  const onSubmitPhone = (e) => {
+  const onSubmitEmailStep = (e) => {
     e.preventDefault();
-    setPhoneTouch(true);
-    if (isPhoneValid) {
-      handleSendOtp(loginPhone);
+    setEmailTouch(true);
+    if (isEmailValid) {
+      handleCheckEmailAndSendOtp(cleanEmail);
     } else {
-      setLoginError('Số điện thoại không hợp lệ! Vui lòng kiểm tra lại đầu số VN.');
+      setLoginError('Email không đúng định dạng. Vui lòng kiểm tra lại!');
     }
   };
 
@@ -126,21 +143,56 @@ export const Auth = React.memo(({
     handleVerifyOtp(loginOtp);
   };
 
-  const onSubmitRegister = (e) => {
+  const onSubmitRegisterForm = (e) => {
     e.preventDefault();
-    handleRegister(registerName, registerRole);
+    if (!registerName.trim()) {
+      setLoginError('Vui lòng nhập họ và tên của bạn.');
+      return;
+    }
+    // Automatically send OTP for email verification
+    handleSendOtp(cleanEmail);
   };
+
+  const handleZaloFastLogin = async () => {
+    try {
+      await authorize({ scopes: ['scope.userInfo'] });
+      const res = await getUserInfo({});
+      if (res?.userInfo) {
+        const zaloUser = res.userInfo;
+        const authUser = await Storage.authenticateZalo({
+          id: zaloUser.id,
+          name: zaloUser.name,
+          avatar: zaloUser.avatar
+        });
+        await Storage.setLoggedInUser(authUser);
+        window.location.reload();
+      }
+    } catch (err) {
+      // Fallback for browser testing: log in as Demo Admin
+      const demoUser = users.find(u => u.email === 'nguyenvana@gmail.com') || users[0];
+      if (demoUser) {
+        await handleSelectAccount(demoUser);
+      }
+    }
+  };
+
+  const matchedUsers = (loginEmailMatchedUsers && loginEmailMatchedUsers.length > 0)
+    ? loginEmailMatchedUsers
+    : (loginPhoneMatchedUsers || []);
 
   return (
     <div className="login-screen-wrapper">
       <div className="login-card card">
+        
+        {/* Brand Logo & Header */}
         <div className="login-logo-container">
-          <img src={logo} alt="Logo" className="login-logo-img" />
+          <img src={logo} alt="Smeet Logo" className="login-logo-img" />
         </div>
         
         <h2 className="login-title">Smeet</h2>
-        <p className="login-subtitle">Quản lý, đặt lịch họp & tóm tắt báo cáo AI chuyên nghiệp</p>
-        
+        <p className="login-subtitle">Hệ thống Đặt lịch họp & Tóm tắt báo cáo AI thông minh</p>
+
+        {/* Global Error Banner */}
         {loginError && (
           <div className="alert-box auth-alert">
             <AlertCircle size={16} />
@@ -148,15 +200,17 @@ export const Auth = React.memo(({
           </div>
         )}
         
-        {/* CASE 1: MULTI-ACCOUNT ACCOUNT SELECTION */}
+        {/* ────────────────────────────────────────────────────────── */}
+        {/* CASE 1: MULTI-ACCOUNT PICKER */}
+        {/* ────────────────────────────────────────────────────────── */}
         {isSelectingAccount && (
           <div className="auth-account-select-container">
             <div className="auth-helper-banner">
-              Số điện thoại này liên kết với nhiều tài khoản. Vui lòng chọn tài khoản muốn đăng nhập:
+              Địa chỉ email này liên kết với nhiều tài khoản. Vui lòng chọn tài khoản muốn đăng nhập:
             </div>
             
             <div className="auth-accounts-list">
-              {loginPhoneMatchedUsers.map(u => (
+              {matchedUsers.map(u => (
                 <button
                   key={u.id}
                   type="button"
@@ -168,7 +222,7 @@ export const Auth = React.memo(({
                     <div className="auth-account-details">
                       <span className="auth-account-name">{u.name}</span>
                       <span className="auth-account-role">
-                        Vai trò: {u.role === 'admin' ? 'Quản lý (Host)' : u.role === 'delegated' ? 'Ủy quyền' : 'Thành viên'}
+                        Role: {u.role === 'admin' ? 'Quản lý (Host)' : u.role === 'delegated' ? 'Ủy quyền' : 'Thành viên'}
                       </span>
                     </div>
                   </div>
@@ -188,34 +242,36 @@ export const Auth = React.memo(({
           </div>
         )}
 
-        {/* CASE 2: PHONE NUMBER ENTRY */}
+        {/* ────────────────────────────────────────────────────────── */}
+        {/* CASE 2: STEP 1 - EMAIL INPUT (SMART LOOKUP) */}
+        {/* ────────────────────────────────────────────────────────── */}
         {!otpSent && !isRegistering && !isSelectingAccount && (
-          <form onSubmit={onSubmitPhone} className="auth-form">
+          <form onSubmit={onSubmitEmailStep} className="auth-form">
             <div className="form-group">
-              <label htmlFor="login-phone">Số điện thoại thành viên</label>
+              <label htmlFor="login-email">Địa chỉ Email của bạn</label>
               <div className="auth-input-wrapper">
                 <input
-                  id="login-phone"
-                  type="tel"
-                  maxLength={10}
-                  value={loginPhone}
-                  onFocus={() => setPhoneTouch(true)}
+                  id="login-email"
+                  type="email"
+                  value={loginEmail}
+                  onFocus={() => setEmailTouch(true)}
                   onChange={(e) => {
-                    setPhoneTouch(true);
-                    setLoginPhone(e.target.value.replace(/\D/g, ''));
+                    setEmailTouch(true);
+                    setLoginEmail(e.target.value);
                   }}
-                  placeholder="Nhập số điện thoại (ví dụ: 0912345678)..."
-                  className={`input-text auth-phone-input ${phoneTouch && !isPhoneValid && loginPhone ? 'input-error' : ''}`}
+                  placeholder="Nhập email (ví dụ: nguyenvana@gmail.com)..."
+                  className={`input-text auth-phone-input ${emailTouch && !isEmailValid && loginEmail ? 'input-error' : ''}`}
                   required
+                  autoFocus
                 />
-                <Phone size={18} className="auth-input-icon" />
+                <Mail size={18} className="auth-input-icon" />
               </div>
               
-              {phoneTouch && loginPhone && (
-                <span className={`auth-validation-hint ${isPhoneValid ? 'text-success' : 'text-danger'}`}>
-                  {isPhoneValid 
-                    ? '✓ Số điện thoại đúng định dạng Việt Nam' 
-                    : '✗ Phải bắt đầu bằng 03, 05, 07, 08, 09 và đủ 10 số'
+              {emailTouch && loginEmail && (
+                <span className={`auth-validation-hint ${isEmailValid ? 'text-success' : 'text-danger'}`}>
+                  {isEmailValid 
+                    ? '✓ Định dạng Email hợp lệ' 
+                    : '✗ Email không đúng định dạng (ví dụ: user@example.com)'
                   }
                 </span>
               )}
@@ -224,31 +280,93 @@ export const Auth = React.memo(({
             <button 
               type="submit" 
               className="btn btn-primary btn-auth-submit"
-              disabled={!isPhoneValid}
+              disabled={!isEmailValid || isCheckingEmail}
             >
-              Nhận mã xác thực OTP
+              {isCheckingEmail ? (
+                <>
+                  <RefreshCw size={16} className="spin-once" />
+                  <span>Đang kiểm tra tài khoản...</span>
+                </>
+              ) : (
+                <>
+                  <span>Tiếp tục</span>
+                  <ArrowRight size={16} />
+                </>
+              )}
             </button>
+
+            {/* Divider */}
+            <div className="auth-divider">
+              <span>hoặc</span>
+            </div>
+
+            {/* Fast Zalo Login Button */}
+            <button
+              type="button"
+              onClick={handleZaloFastLogin}
+              className="btn btn-secondary auth-zalo-fast-btn"
+            >
+              <Sparkles size={16} color="#0068FF" />
+              <span>Đăng nhập nhanh qua Zalo</span>
+            </button>
+
+            {/* Quick Test Demo Chips */}
+            <div className="auth-demo-chips-container">
+              <span className="auth-demo-chips-title">Dùng thử nhanh tài khoản có sẵn:</span>
+              <div className="auth-demo-chips-list">
+                {demoAccounts.map((account) => (
+                  <button
+                    key={account.email}
+                    type="button"
+                    className="auth-demo-chip"
+                    onClick={() => {
+                      setLoginEmail(account.email);
+                      setEmailTouch(true);
+                      handleCheckEmailAndSendOtp(account.email);
+                    }}
+                  >
+                    <span>{account.name}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
           </form>
         )}
 
-        {/* CASE 3: SPECIALIZED OTP INPUT VIEW */}
+        {/* ────────────────────────────────────────────────────────── */}
+        {/* CASE 3: STEP 2 - ENTER OTP (EXISTING USER) */}
+        {/* ────────────────────────────────────────────────────────── */}
         {otpSent && !isRegistering && !isSelectingAccount && (
           <form onSubmit={onSubmitOtp} className="auth-form">
+            
+            {/* User Greeting Card */}
+            {matchedUserPreview && (
+              <div className="auth-user-preview-card">
+                <img src={matchedUserPreview.avatar} alt={matchedUserPreview.name} className="preview-avatar" />
+                <div className="preview-meta">
+                  <span className="preview-welcome">Chào mừng bạn quay lại!</span>
+                  <span className="preview-name">{matchedUserPreview.name}</span>
+                </div>
+                <span className="badge badge-primary">
+                  {matchedUserPreview.role === 'admin' ? 'Host' : matchedUserPreview.role === 'delegated' ? 'Ủy quyền' : 'Thành viên'}
+                </span>
+              </div>
+            )}
+
             <div className="auth-helper-banner">
-              Mã xác thực đã được gửi đến số điện thoại <strong>{loginPhone}</strong>.
+              Mã xác thực OTP 6 số đã được gửi tới <strong>{loginEmail}</strong>.
               <button 
                 type="button" 
                 onClick={resetLoginStates} 
                 className="auth-change-phone-btn"
               >
-                Thay đổi
+                Đổi Email
               </button>
             </div>
             
             <div className="form-group">
               <label className="auth-otp-label">Nhập mã xác thực (OTP)</label>
               
-              {/* 6 separate boxes */}
               <div className="auth-otp-boxes-grid">
                 {Array(otpLength).fill(0).map((_, idx) => (
                   <input
@@ -292,59 +410,123 @@ export const Auth = React.memo(({
               className="btn btn-primary"
               disabled={loginOtp.length !== otpLength}
             >
-              Xác nhận đăng nhập
+              Xác nhận & Đăng nhập
             </button>
           </form>
         )}
 
-        {/* CASE 4: REGISTRATION */}
-        {isRegistering && !isSelectingAccount && (
-          <form onSubmit={onSubmitRegister} className="auth-form">
+        {/* ────────────────────────────────────────────────────────── */}
+        {/* CASE 4: STEP 2 - NEW USER REGISTRATION */}
+        {/* ────────────────────────────────────────────────────────── */}
+        {isRegistering && !otpSent && !isSelectingAccount && (
+          <form onSubmit={onSubmitRegisterForm} className="auth-form">
             <div className="auth-helper-banner info">
-              <ShieldCheck size={16} />
-              <span>Số điện thoại <strong>{loginPhone}</strong> chưa tồn tại trong hệ thống. Hãy hoàn tất đăng ký thông tin của bạn.</span>
+              <UserCheck size={16} />
+              <span>Email <strong>{loginEmail}</strong> chưa có tài khoản. Đăng ký tài khoản Smeet mới chỉ trong 5 giây!</span>
             </div>
             
             <div className="form-group">
-              <label htmlFor="register-name">Họ và tên thành viên</label>
+              <label htmlFor="register-name">Họ và tên của bạn</label>
               <input
                 id="register-name"
                 type="text"
                 value={registerName}
                 onChange={(e) => setRegisterName(e.target.value)}
-                placeholder="Nhập họ tên đầy đủ (ví dụ: Nguyễn Văn A)..."
+                placeholder="Nhập họ và tên đầy đủ (ví dụ: Nguyễn Văn A)..."
                 className="input-text"
                 required
+                autoFocus
               />
             </div>
 
             <div className="form-group">
-              <label htmlFor="register-role">Vai trò mong muốn</label>
+              <label htmlFor="register-role">Vai trò trong cuộc họp</label>
               <select
                 id="register-role"
                 value={registerRole}
                 onChange={(e) => setRegisterRole(e.target.value)}
                 className="select-input"
               >
-                <option value="member">Thành viên cuộc họp (Member)</option>
+                <option value="member">Thành viên tham gia họp (Member)</option>
                 <option value="admin">Chủ trì cuộc họp (Host / Admin)</option>
               </select>
             </div>
             
             <button type="submit" className="btn btn-primary">
-              Hoàn tất đăng ký & Đăng nhập
+              Nhận mã OTP & Tạo tài khoản
             </button>
             
             <button 
               type="button" 
               onClick={resetLoginStates} 
               className="btn btn-secondary"
+              style={{ marginTop: '8px' }}
             >
               Quay lại
             </button>
           </form>
         )}
 
+        {/* STEP 2B - OTP VERIFY FOR NEW USER */}
+        {isRegistering && otpSent && !isSelectingAccount && (
+          <form onSubmit={async (e) => {
+            e.preventDefault();
+            if (loginOtp.length !== otpLength) {
+              setLoginError('Vui lòng nhập đủ 6 chữ số OTP.');
+              return;
+            }
+            // Dùng handleVerifyOtp để xác thực — hỗ trợ cả chế độ real (server verify) lẫn simulated (local)
+            // Sau khi OTP hợp lệ, handleVerifyOtp sẽ tự route sang isRegistering=true → gọi handleRegister
+            const otpOk = await handleVerifyOtp(loginOtp);
+            if (!otpOk) return; // handleVerifyOtp đã set loginError rồi
+            await handleRegister(registerName, registerRole);
+          }} className="auth-form">
+            <div className="auth-helper-banner info">
+              <ShieldCheck size={16} />
+              <span>Nhập mã OTP vừa gửi tới <strong>{loginEmail}</strong> để hoàn tất đăng ký cho <strong>{registerName}</strong>.</span>
+            </div>
+
+            <div className="form-group">
+              <label className="auth-otp-label">Nhập mã xác thực (OTP)</label>
+              <div className="auth-otp-boxes-grid">
+                {Array(otpLength).fill(0).map((_, idx) => (
+                  <input
+                    key={idx}
+                    ref={(el) => (inputRefs.current[idx] = el)}
+                    type="text"
+                    inputMode="numeric"
+                    pattern="\d*"
+                    maxLength={1}
+                    value={otpBoxes[idx]}
+                    onChange={(e) => handleOtpBoxChange(e.target.value, idx)}
+                    onKeyDown={(e) => handleOtpKeyDown(e, idx)}
+                    className="auth-otp-box"
+                    autoFocus={idx === 0}
+                  />
+                ))}
+              </div>
+            </div>
+
+            <button 
+              type="submit" 
+              className="btn btn-primary"
+              disabled={loginOtp.length !== otpLength}
+            >
+              Hoàn tất đăng ký & Đăng nhập
+            </button>
+
+            <button 
+              type="button" 
+              onClick={resetLoginStates} 
+              className="btn btn-secondary"
+              style={{ marginTop: '8px' }}
+            >
+              Hủy bỏ
+            </button>
+          </form>
+        )}
+
+        {/* Footer Terms Link */}
         <div style={{ marginTop: '20px', textAlign: 'center', fontSize: '0.78rem', color: 'var(--text-muted, #64748b)' }}>
           Bằng việc sử dụng Smeet, bạn đồng ý với{' '}
           <button
