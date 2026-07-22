@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Video, MapPin, Phone, Edit, ArrowRight, Plus, Calendar, X, Zap, BellPlus } from 'lucide-react';
-import { generateGoogleCalendarUrl, downloadIcsFile } from '../utils/calendarHelper';
+import { downloadIcsFile } from '../utils/calendarHelper';
 
 export const MeetingList = React.memo(({
   selectedDate,
@@ -51,6 +51,37 @@ export const MeetingList = React.memo(({
 
   const canceledMeetings = selectedDateMeetings.filter(m => m.status === 'canceled');
 
+  const touchStartPos = React.useRef({ x: 0, y: 0 });
+  const isScrollDragging = React.useRef(false);
+
+  const handlePointerDown = (e) => {
+    const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+    const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+    touchStartPos.current = { x: clientX, y: clientY };
+    isScrollDragging.current = false;
+  };
+
+  const handlePointerMove = (e) => {
+    if (!e.touches && e.buttons === 0) return;
+    const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+    const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+    const diffX = Math.abs(clientX - touchStartPos.current.x);
+    const diffY = Math.abs(clientY - touchStartPos.current.y);
+    if (diffX > 8 || diffY > 8) {
+      isScrollDragging.current = true;
+    }
+  };
+
+  const handleCardClick = (e, meeting) => {
+    if (isScrollDragging.current) {
+      isScrollDragging.current = false;
+      return;
+    }
+    if (meeting.status !== 'canceled') {
+      enterMeetingWorkspace(meeting);
+    }
+  };
+
   const renderMeetingCard = (meeting, isPast = false, isLive = false) => {
     const isCreator = currentUser?.role === 'admin' || currentUser?.id === meeting.createdBy;
     const startTimeStr = new Date(meeting.startTime).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
@@ -60,6 +91,12 @@ export const MeetingList = React.memo(({
       <div 
         key={meeting.id} 
         className={`card meeting-card-item ${meeting.locationType === 'online' ? 'online' : ''} ${isPast ? 'past-meeting-card' : ''} ${isLive ? 'live-meeting-card' : ''} ${isCanceled ? 'canceled-meeting-card' : ''}`}
+        style={{ cursor: isCanceled ? 'default' : 'pointer' }}
+        onTouchStart={handlePointerDown}
+        onTouchMove={handlePointerMove}
+        onMouseDown={handlePointerDown}
+        onMouseMove={handlePointerMove}
+        onClick={(e) => handleCardClick(e, meeting)}
       >
         {/* Delete/Cancel confirmation overlay */}
         {deletingMeetingId === meeting.id && (
@@ -150,7 +187,10 @@ export const MeetingList = React.memo(({
             )}
             {isCreator && !isCanceled && (
               <button 
-                onClick={() => openEditMeetingForm(meeting)} 
+                onClick={(e) => {
+                  e.stopPropagation();
+                  openEditMeetingForm(meeting);
+                }} 
                 className="btn-edit-meeting"
                 aria-label="Chỉnh sửa cuộc họp"
               >

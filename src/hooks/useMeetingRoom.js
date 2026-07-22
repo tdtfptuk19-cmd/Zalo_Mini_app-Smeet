@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { Storage } from '../utils/storage';
+import { formatExternalUrl } from '../utils/calendarHelper';
 
 export function useMeetingRoom(currentUser, activeMeeting, setActiveMeeting, triggerNotification) {
   // Personal note states
@@ -128,12 +129,15 @@ export function useMeetingRoom(currentUser, activeMeeting, setActiveMeeting, tri
   const handleSaveOnlineConfig = async () => {
     if (!activeMeeting) return false;
     try {
+      const formattedLink = formatExternalUrl(onlineMeetLink);
+      setOnlineMeetLink(formattedLink);
+
       const updatedMeeting = {
         ...activeMeeting,
-        locationDetail: onlineMeetLink.trim(),
+        locationDetail: formattedLink,
         onlineConfig: {
           platform: onlinePlatform,
-          link: onlineMeetLink.trim(),
+          link: formattedLink,
           waitingRoom: onlineWaitingRoom,
           autoRecord: onlineAutoRecord,
           muteOnEntry: onlineMuteOnEntry
@@ -143,7 +147,6 @@ export function useMeetingRoom(currentUser, activeMeeting, setActiveMeeting, tri
       await Storage.saveMeeting(updatedMeeting);
       setActiveMeeting(updatedMeeting);
       triggerNotification('[Hệ thống] Đã lưu cấu hình cuộc họp online thành công!');
-      triggerNotification(`[Hệ thống] Cấu hình họp online "${activeMeeting.title}" được cập nhật bởi Host.`);
       return true;
     } catch (err) {
       triggerNotification(`[Lỗi] Lỗi khi lưu cấu hình: ${err.message}`);

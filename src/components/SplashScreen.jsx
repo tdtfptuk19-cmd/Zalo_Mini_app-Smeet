@@ -81,10 +81,10 @@ export function SplashScreen({ onDone }) {
             src={logo}
             alt="Smeet"
             style={{
-              width: 72,
-              height: 72,
+              width: 96,
+              height: 96,
               objectFit: 'contain',
-              filter: 'drop-shadow(0 2px 8px rgba(0,0,0,0.2))',
+              filter: 'drop-shadow(0 4px 12px rgba(0,0,0,0.25))',
               animation: 'splashBounce 0.6s ease-out',
             }}
           />

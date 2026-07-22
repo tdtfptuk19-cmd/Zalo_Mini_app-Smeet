@@ -4,6 +4,35 @@
  */
 
 /**
+ * ĐỊnh dạng URL hợp lệ (tự động thêm https:// nếu thiếu)
+ */
+export function formatExternalUrl(url) {
+  if (!url) return '';
+  let trimmed = url.trim();
+  if (!trimmed) return '';
+  if (!/^https?:\/\//i.test(trimmed)) {
+    trimmed = `https://${trimmed}`;
+  }
+  return trimmed;
+}
+
+/**
+ * Mở URL trên trình duyệt / Zalo Mini App WebView an toàn
+ */
+export function openExternalUrl(url) {
+  if (!url) return;
+  const formatted = formatExternalUrl(url);
+  try {
+    if (window.zmp && typeof window.zmp.openWebview === 'function') {
+      window.zmp.openWebview({ url: formatted });
+      return;
+    }
+  } catch {}
+
+  window.open(formatted, '_blank', 'noopener,noreferrer');
+}
+
+/**
  * ĐỊnh dạng ISO 8601 UTC dạng YYYYMMDDTHHMMSSZ cho Google Calendar & ICS
  */
 function formatDateToUTCString(dateStr) {

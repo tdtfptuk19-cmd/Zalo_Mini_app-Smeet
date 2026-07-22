@@ -19,9 +19,28 @@ app.use(cors({
 }));
 app.use(express.json());
 
+// Root: tránh 404 gây hiểu nhầm khi mở URL Vercel trên trình duyệt
+app.get('/', (req, res) => {
+  res.json({
+    service: 'Smeet Backend',
+    status: 'ok',
+    hint: 'Đây là API backend. Frontend chạy trên Zalo Mini App.',
+    endpoints: {
+      health: '/api/health',
+      terms: '/terms',
+      webhook: '/api/zalo/webhook'
+    }
+  });
+});
+
 // Middleware: Tự động đảm bảo MongoDB Atlas đã kết nối trước khi xử lý API request trên Vercel
 app.use(async (req, res, next) => {
-  if (req.path === '/api/health' || req.path === '/api/zalo/webhook' || req.path === '/terms') return next();
+  if (
+    req.path === '/' ||
+    req.path === '/api/health' ||
+    req.path === '/api/zalo/webhook' ||
+    req.path === '/terms'
+  ) return next();
   try {
     await db.connect();
     next();
@@ -332,6 +351,25 @@ app.post('/api/auth/zalo', async (req, res) => {
   } catch (err) {
     console.error('Auth API error:', err);
     res.status(500).json({ error: 'Có lỗi xảy ra khi xác thực người dùng.' });
+  }
+});
+
+// ─────────────────────────────────────────────────────────────────────
+// 1b. Public user lookup by phone (for OTP login before session exists)
+// ─────────────────────────────────────────────────────────────────────
+app.get('/api/users/lookup', async (req, res) => {
+  const phone = (req.query.phone || '').trim();
+  const phoneRegex = /^(03|05|07|08|09)\d{8}$/;
+
+  if (!phoneRegex.test(phone)) {
+    return res.status(400).json({ error: 'Số điện thoại không hợp lệ.' });
+  }
+
+  try {
+    const users = await User.find({ phone }).select('id name phone role avatar defaultMeet -_id');
+    res.json(users);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
   }
 });
 

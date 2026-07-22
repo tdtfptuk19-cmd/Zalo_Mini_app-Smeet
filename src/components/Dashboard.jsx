@@ -29,6 +29,35 @@ export const Dashboard = React.memo(({ currentUser, onEnterMeeting, onOpenCreate
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
+  const touchStartPos = React.useRef({ x: 0, y: 0 });
+  const isScrollDragging = React.useRef(false);
+
+  const handlePointerDown = (e) => {
+    const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+    const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+    touchStartPos.current = { x: clientX, y: clientY };
+    isScrollDragging.current = false;
+  };
+
+  const handlePointerMove = (e) => {
+    if (!e.touches && e.buttons === 0) return;
+    const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+    const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+    const diffX = Math.abs(clientX - touchStartPos.current.x);
+    const diffY = Math.abs(clientY - touchStartPos.current.y);
+    if (diffX > 8 || diffY > 8) {
+      isScrollDragging.current = true;
+    }
+  };
+
+  const handleCardClick = (m) => {
+    if (isScrollDragging.current) {
+      isScrollDragging.current = false;
+      return;
+    }
+    onEnterMeeting(m);
+  };
+
   const loadDashboard = useCallback(async (isBackground = false) => {
     if (!isBackground) setLoading(true);
     setError('');
@@ -158,7 +187,15 @@ export const Dashboard = React.memo(({ currentUser, onEnterMeeting, onOpenCreate
             {dashData.todayMeetings.map(m => {
               const status = getMeetingStatusInfo(m);
               return (
-                <div key={m.id} className="dashboard-meeting-card" onClick={() => onEnterMeeting(m)}>
+                <div 
+                  key={m.id} 
+                  className="dashboard-meeting-card" 
+                  onTouchStart={handlePointerDown}
+                  onTouchMove={handlePointerMove}
+                  onMouseDown={handlePointerDown}
+                  onMouseMove={handlePointerMove}
+                  onClick={() => handleCardClick(m)}
+                >
                   <div className="dm-card-top">
                     <span className={`dm-badge dm-badge-status ${status.cls}`}>{status.label}</span>
                     <span className="dm-time">{formatTime(m.startTime)} – {formatTime(m.endTime)}</span>
@@ -201,7 +238,15 @@ export const Dashboard = React.memo(({ currentUser, onEnterMeeting, onOpenCreate
           </div>
           <div className="dashboard-meeting-list">
             {dashData.upcomingMeetings.map(m => (
-              <div key={m.id} className="dashboard-meeting-card" onClick={() => onEnterMeeting(m)}>
+              <div 
+                key={m.id} 
+                className="dashboard-meeting-card" 
+                onTouchStart={handlePointerDown}
+                onTouchMove={handlePointerMove}
+                onMouseDown={handlePointerDown}
+                onMouseMove={handlePointerMove}
+                onClick={() => handleCardClick(m)}
+              >
                 <div className="dm-card-top">
                   <span className="dm-badge dm-badge-upcoming">Sắp diễn ra</span>
                   <span className="dm-time">{formatDate(m.startTime)} • {formatTime(m.startTime)}</span>
@@ -223,7 +268,15 @@ export const Dashboard = React.memo(({ currentUser, onEnterMeeting, onOpenCreate
           </div>
           <div className="dashboard-meeting-list">
             {dashData.meetingsWithoutReport.map(m => (
-              <div key={m.id} className="dashboard-meeting-card warning-card" onClick={() => onEnterMeeting(m)}>
+              <div 
+                key={m.id} 
+                className="dashboard-meeting-card warning-card" 
+                onTouchStart={handlePointerDown}
+                onTouchMove={handlePointerMove}
+                onMouseDown={handlePointerDown}
+                onMouseMove={handlePointerMove}
+                onClick={() => handleCardClick(m)}
+              >
                 <div className="dm-card-top">
                   <span className="dm-badge dm-badge-warning">⚠️ Thiếu báo cáo</span>
                   <span className="dm-time">{formatDate(m.startTime)}</span>

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { AlertCircle, Upload, Plus, Trash2, X, Check } from 'lucide-react';
 import { Storage } from '../utils/storage';
+import { formatExternalUrl } from '../utils/calendarHelper';
 
 const generateRandomMeetLink = () => {
   const randStr = (len) => {
@@ -26,6 +27,7 @@ export const MeetingFormModal = React.memo(({
   // Wizard step state
   const [step, setStep] = useState(1);
   const [formError, setFormError] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Form states
   const [formTitle, setFormTitle] = useState('');
@@ -214,9 +216,16 @@ export const MeetingFormModal = React.memo(({
     e.preventDefault();
     if (!validateStep1() || !validateStep2()) return;
 
+    setIsSubmitting(true);
+    setFormError('');
+
     const startDateTime = new Date(`${formDate}T${formStartTime}:00`);
     const endDateTime = new Date(`${formDate}T${formEndTime}:00`);
     const duration = Math.round((endDateTime.getTime() - startDateTime.getTime()) / (1000 * 60));
+
+    const finalLocationDetail = formLocationType === 'online' 
+      ? formatExternalUrl(formLocationDetail) 
+      : formLocationDetail.trim();
 
     const meetingData = {
       title: formTitle.trim() || 'Họp Không Tiêu Đề',
@@ -224,7 +233,7 @@ export const MeetingFormModal = React.memo(({
       endTime: endDateTime.toISOString(),
       duration,
       locationType: formLocationType,
-      locationDetail: formLocationDetail.trim(),
+      locationDetail: finalLocationDetail,
       hostName: formHostName.trim(),
       hostPhone: formHostPhone.trim(),
       note: formNote.trim(),
@@ -246,14 +255,17 @@ export const MeetingFormModal = React.memo(({
     if (conflict) {
       const conflictTime = `${new Date(conflict.startTime).toLocaleTimeString('vi-VN', {hour: '2-digit', minute:'2-digit'})} - ${new Date(conflict.endTime).toLocaleTimeString('vi-VN', {hour: '2-digit', minute:'2-digit'})}`;
       setFormError(`Trùng lịch họp với cuộc họp: "${conflict.title}" (${conflictTime})`);
+      setIsSubmitting(false);
       setStep(2); // Jump back to calendar/time step to fix conflicts
       return;
     }
 
     try {
       await onSaveMeeting(meetingData);
+      setIsSubmitting(false);
       onClose();
     } catch (err) {
+      setIsSubmitting(false);
       setFormError(err.message || 'Có lỗi xảy ra khi lưu cuộc họp.');
     }
   };
@@ -290,7 +302,9 @@ export const MeetingFormModal = React.memo(({
       <div className="modal-content form-wizard-modal">
         <div className="modal-header">
           <h3>{editingMeeting ? 'Chỉnh sửa cuộc họp' : 'Đặt lịch họp mới'}</h3>
-          <button onClick={onClose} className="modal-close-btn">&times;</button>
+          <button type="button" onClick={onClose} className="modal-close-btn" aria-label="Đóng">
+            <X size={18} />
+          </button>
         </div>
 
         {/* Step progress bar */}
@@ -299,12 +313,12 @@ export const MeetingFormModal = React.memo(({
             <span className="step-num">1</span>
             <span className="step-label">Thông tin chung</span>
           </div>
-          <div className="wizard-line" />
+          <div className={`wizard-line ${step >= 2 ? 'active' : ''}`} />
           <div className={`wizard-step ${step >= 2 ? 'active' : ''}`}>
             <span className="step-num">2</span>
             <span className="step-label">Thời gian</span>
           </div>
-          <div className="wizard-line" />
+          <div className={`wizard-line ${step >= 3 ? 'active' : ''}`} />
           <div className={`wizard-step ${step >= 3 ? 'active' : ''}`}>
             <span className="step-num">3</span>
             <span className="step-label">Mời nhóm</span>
@@ -623,9 +637,9 @@ export const MeetingFormModal = React.memo(({
                   Tiếp theo
                 </button>
               ) : (
-                <button type="submit" className="btn btn-primary">
+                <button type="submit" className="btn btn-primary" disabled={isSubmitting}>
                   <Check size={16} />
-                  <span>{editingMeeting ? 'Lưu chỉnh sửa' : 'Lên lịch họp'}</span>
+                  <span>{isSubmitting ? 'Đang lưu cuộc họp...' : editingMeeting ? 'Lưu chỉnh sửa' : 'Lên lịch họp'}</span>
                 </button>
               )}
             </div>

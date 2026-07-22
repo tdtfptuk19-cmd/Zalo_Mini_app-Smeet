@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build && node -e \"const fs = require('fs'); fs.copyFileSync('app-config.json', 'dist/app-config.json');\"",
+    "build": "vite build && node scripts/postbuild-zmp.mjs",
     "lint": "oxlint",
     "preview": "vite preview"
   },

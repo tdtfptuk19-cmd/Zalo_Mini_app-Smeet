@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { AlertCircle, Zap, Video } from 'lucide-react';
+import { AlertCircle, Zap, Video, X } from 'lucide-react';
 
 const generateRandomMeetLink = () => {
   const randStr = (len) => {
@@ -80,6 +80,7 @@ export const QuickMeetingModal = React.memo(({
       members: [],
       memberPhones: [],
       createdBy: currentUser?.id,
+      isQuick: true,
       status: 'active'
     };
 
@@ -106,7 +107,9 @@ export const QuickMeetingModal = React.memo(({
             <Zap size={20} className="quick-meet-icon-zap" />
             <h3>Tạo cuộc họp nhanh</h3>
           </div>
-          <button onClick={onClose} className="modal-close-btn">&times;</button>
+          <button type="button" onClick={onClose} className="modal-close-btn" aria-label="Đóng">
+            <X size={18} />
+          </button>
         </div>
 
         {error && (

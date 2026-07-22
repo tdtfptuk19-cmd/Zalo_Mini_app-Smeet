@@ -1,6 +1,6 @@
 import { useState, useCallback, useMemo, useEffect } from 'react';
 import { Storage } from '../utils/storage';
-import { checkAndSendMeetingNotifications } from '../utils/notificationHelper';
+import { checkAndSendMeetingNotifications, sendMeetingCreatedNotification } from '../utils/notificationHelper';
 
 export function useMeetings(currentUser, triggerNotification) {
   const [currentDate, setCurrentDate] = useState(new Date());
@@ -115,16 +115,24 @@ export function useMeetings(currentUser, triggerNotification) {
 
   const handleSaveMeeting = async (meetingData) => {
     try {
+      const isEdit = !!meetingData.id;
       const saved = await Storage.saveMeeting(meetingData);
       await refreshMeetings();
       setIsMeetingModalOpen(false);
       setEditingMeeting(null);
       
+      const isQuick = meetingData.note?.includes('Cuộc họp nhanh') || meetingData.isQuick;
+
+      // Gửi thông báo nổi native hệ thống ngay lập tức khi tạo cuộc họp mới
+      if (!isEdit) {
+        sendMeetingCreatedNotification(saved, isQuick);
+      }
+
       const startDateTime = new Date(meetingData.startTime);
       const startTimeStr = startDateTime.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
       const dateStr = startDateTime.toLocaleDateString('vi-VN');
       triggerNotification(
-        `[Hệ thống] Đặt lịch thành công: "${saved.title}" lúc ${startTimeStr} ngày ${dateStr}.`
+        `[Hệ thống] ${isQuick ? 'Khởi tạo họp nhanh' : 'Đặt lịch'} thành công: "${saved.title}" lúc ${startTimeStr} (${dateStr}).`
       );
       return saved;
     } catch (err) {

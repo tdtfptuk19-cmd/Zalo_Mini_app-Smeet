@@ -30,8 +30,14 @@ export function useAuth(triggerNotification) {
   // Ref giữ OTP và thời hạn để kiểm tra chính xác khi verify
   const otpRef = useRef({ code: '', expiresAt: 0 });
 
-  // Load initial data
+  // Load initial data (only when user is authenticated)
   const initUsers = useCallback(async () => {
+    const loggedIn = await Storage.getLoggedInUser();
+    if (!loggedIn?.id) {
+      setUsers([]);
+      return [];
+    }
+
     try {
       const loadedUsers = await Storage.getUsers();
       // Auto-migrate old Unsplash avatars to default local Base64 SVGs to avoid loading broken external images
@@ -104,7 +110,14 @@ export function useAuth(triggerNotification) {
       return false;
     }
 
-    const matchedUsers = users.filter(u => u.phone === loginPhone);
+    let matchedUsers = [];
+    try {
+      matchedUsers = await Storage.lookupUsersByPhone(loginPhone);
+    } catch (err) {
+      setLoginError(err.message || 'Không thể tra cứu tài khoản. Vui lòng thử lại.');
+      return false;
+    }
+
     if (matchedUsers.length > 1) {
       setLoginPhoneMatchedUsers(matchedUsers);
       setIsSelectingAccount(true);

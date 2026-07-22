@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { openExternalUrl, formatExternalUrl } from '../utils/calendarHelper';
 import { 
   Clock, Video, Sparkles, Download, Settings, CheckCircle, Save, 
   BarChart2, Plus, AlertCircle, Share2, Info, Trash2, Users, ArrowLeft, Maximize2, Minimize2
@@ -134,10 +135,47 @@ export const MeetingRoom = React.memo(({
     }
   };
 
+  const touchStartPos = React.useRef({ x: 0, y: 0 });
+  const isScrollDragging = React.useRef(false);
+
+  const handlePointerDown = (e) => {
+    const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+    const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+    touchStartPos.current = { x: clientX, y: clientY };
+    isScrollDragging.current = false;
+  };
+
+  const handlePointerMove = (e) => {
+    if (!e.touches && e.buttons === 0) return;
+    const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+    const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+    const diffX = Math.abs(clientX - touchStartPos.current.x);
+    const diffY = Math.abs(clientY - touchStartPos.current.y);
+    if (diffX > 8 || diffY > 8) {
+      isScrollDragging.current = true;
+    }
+  };
+
+  const handleQuickInfoClick = () => {
+    if (isScrollDragging.current) {
+      isScrollDragging.current = false;
+      return;
+    }
+    setViewMode('details');
+  };
+
   return (
     <div className="meeting-workspace-container">
       {viewMode === 'main' && (
-        <div className="card meeting-quick-info-card">
+        <div 
+          className="card meeting-quick-info-card"
+          style={{ cursor: 'pointer' }}
+          onTouchStart={handlePointerDown}
+          onTouchMove={handlePointerMove}
+          onMouseDown={handlePointerDown}
+          onMouseMove={handlePointerMove}
+          onClick={handleQuickInfoClick}
+        >
           <h3 className="workspace-meeting-title">{activeMeeting.title}</h3>
           <p className="workspace-meeting-meta">
             <Clock size={14} />
@@ -146,20 +184,26 @@ export const MeetingRoom = React.memo(({
             </span>
           </p>
           
-          <div className="workspace-action-row">
+          <div className="workspace-action-row" onClick={(e) => e.stopPropagation()}>
             {activeMeeting.locationType === 'online' && (
-              <a 
-                href={activeMeeting.locationDetail} 
-                target="_blank" 
-                rel="noreferrer"
+              <button 
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  openExternalUrl(activeMeeting.locationDetail);
+                }}
                 className="btn btn-primary btn-meet-link"
+                title={formatExternalUrl(activeMeeting.locationDetail)}
               >
                 <Video size={16} />
                 <span>Đường dẫn Họp Online</span>
-              </a>
+              </button>
             )}
             <button 
-              onClick={handleShareMeeting}
+              onClick={(e) => {
+                e.stopPropagation();
+                handleShareMeeting();
+              }}
               className="btn btn-secondary btn-share-zalo"
             >
               <Share2 size={16} />

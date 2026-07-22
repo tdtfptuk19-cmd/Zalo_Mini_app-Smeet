@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { authorize, getUserInfo } from 'zmp-sdk/apis';
-import { Download, FileText, Trash2 } from 'lucide-react';
+import { Download, FileText, Trash2, LayoutDashboard, Calendar, Video, Plus } from 'lucide-react';
 
 import { Storage } from './utils/storage';
 import { useAuth } from './hooks/useAuth';
@@ -98,75 +98,52 @@ function App() {
   // Chạy ngay – không đợi splash – để data sẵn sàng khi splash kết thúc
   useEffect(() => {
     const initData = async () => {
-      // Bước 1: Load user list và session cũ SONG SONG (nhanh hơn)
-      const [, sessionUser0] = await Promise.all([
-        auth.initUsers(),
-        Storage.getLoggedInUser()
-      ]);
-      
-      let sessionUser = sessionUser0;
       const ZALO_DEFAULT_AVATAR = 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgMTAwIj48Y2lyY2xlIGN4PSI1MCIgY3k9IjUwIiByPSI1MCIgZmlsbD0iI0U2RjBGRiIvPjxjaXJjbGUgY3g9IjUwIiBjeT0iMzgiIHI9IjE4IiBmaWxsPSIjMDA2OEZGIi8+PHBhdGggZD0iTTUwIDYwYy0xOCAwLTMwIDgtMzAgMTh2NGg2MHYtNGMwLTEwLTEyLTE4LTMwLTE4eiIgZmlsbD0iIzAwNjhGRiIvPjwvc3ZnPg==';
-      
-      if (sessionUser && sessionUser.avatar && sessionUser.avatar.includes('unsplash.com')) {
-        sessionUser.avatar = ZALO_DEFAULT_AVATAR;
-        await Storage.setLoggedInUser(sessionUser);
+
+      let activeUser = await Storage.getLoggedInUser();
+      if (activeUser?.avatar?.includes('unsplash.com')) {
+        activeUser = { ...activeUser, avatar: ZALO_DEFAULT_AVATAR };
+        await Storage.setLoggedInUser(activeUser);
       }
-      
-      // Bước 2: Hiển thị user cached ngay (trước khi Zalo auth xong)
-      if (sessionUser) {
-        auth.setCurrentUser(sessionUser);
-      }
-      
-      // Bước 3: Load meetings và reports SONG SONG
-      const [loadedMeetings] = await Promise.all([
-        meetings.refreshMeetings(),
-        refreshReports()
-      ]);
-      
-      // Bước 4: Auto Zalo login attempt (chạy sau để không block UI)
+
+      // Auto Zalo login on Mini App runtime
       try {
-        await authorize({ scopes: ["scope.userInfo"] });
+        await authorize({ scopes: ['scope.userInfo'] });
         const res = await getUserInfo({});
-        if (res && res.userInfo) {
+        if (res?.userInfo) {
           const zaloUser = res.userInfo;
           const authenticatedUser = await Storage.authenticateZalo({
             id: zaloUser.id,
             name: zaloUser.name,
             avatar: zaloUser.avatar || ZALO_DEFAULT_AVATAR
           });
-          
-          if (!sessionUser) {
-            sessionUser = authenticatedUser;
-            await Storage.setLoggedInUser(authenticatedUser);
-          }
-          await auth.initUsers();
-          auth.setCurrentUser(authenticatedUser || sessionUser);
+          activeUser = authenticatedUser;
+          await Storage.setLoggedInUser(authenticatedUser);
         }
       } catch (err) {
-        console.warn("Failed to fetch Zalo user info, using mock fallback:", err);
-        // Nếu Zalo auth fail, vẫn dùng session cũ
-        if (!sessionUser) {
-          auth.setCurrentUser(null);
-        }
+        console.warn('Failed to fetch Zalo user info, using cached session if available:', err);
       }
-      
-      // Nếu có user đã đăng nhập, tự động gợi ý xin quyền thông báo nổi (chế độ im lặng nếu unsupported)
-      if (sessionUser) {
+
+      if (activeUser) {
+        auth.setCurrentUser(activeUser);
+        await auth.initUsers();
+        const loadedMeetings = await meetings.refreshMeetings();
+        await refreshReports();
+
         setTimeout(() => requestNotificationPermission(true), 1200);
-      }
-      
-      // Bước 5: Deep-linking checks
-      const params = new URLSearchParams(window.location.search);
-      const meetingIdParam = params.get('meetingId');
-      if (meetingIdParam && sessionUser) {
-        const matchedMeeting = loadedMeetings.find(m => m.id === meetingIdParam);
-        if (matchedMeeting) {
-          setActiveMeeting(matchedMeeting);
-          setActiveTab('meeting');
+
+        const params = new URLSearchParams(window.location.search);
+        const meetingIdParam = params.get('meetingId');
+        if (meetingIdParam) {
+          const matchedMeeting = loadedMeetings.find(m => m.id === meetingIdParam);
+          if (matchedMeeting) {
+            setActiveMeeting(matchedMeeting);
+            setActiveTab('meeting');
+          }
         }
       }
     };
-    
+
     initData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -271,34 +248,6 @@ function App() {
                 />
               </div>
             </div>
-
-            {/* Navigation Tabs */}
-            <div className="nav-tabs">
-              <button 
-                className={`nav-tab ${activeTab === 'dashboard' ? 'active' : ''}`}
-                onClick={() => switchTab('dashboard')}
-              >
-                {t('Tổng quan', 'Dashboard')}
-              </button>
-              <button 
-                className={`nav-tab ${activeTab === 'calendar' ? 'active' : ''}`}
-                onClick={() => switchTab('calendar')}
-              >
-                {t('Lịch Họp', 'Calendar')}
-              </button>
-              <button 
-                className={`nav-tab ${activeTab === 'meeting' ? 'active' : ''}`}
-                onClick={() => switchTab('meeting')}
-              >
-                {t('Phòng Họp', 'Meeting Room')}
-              </button>
-              <button 
-                className={`nav-tab ${activeTab === 'reports' ? 'active' : ''}`}
-                onClick={() => switchTab('reports')}
-              >
-                {t(`Báo Cáo (${reports.length})`, `Reports (${reports.length})`)}
-              </button>
-            </div>
           </header>
 
           {/* Main workspace scroll view */}
@@ -306,15 +255,19 @@ function App() {
 
             {/* Tab 0: Dashboard Tổng quan */}
             {activeTab === 'dashboard' && (
-              <Dashboard
-                currentUser={auth.currentUser}
-                onEnterMeeting={onEnterMeetingRoomFromList}
-                onOpenCreateMeeting={() => meetings.setIsMeetingModalOpen(true)}
-              />
+              <div className="tab-view-wrapper">
+                <h3 className="section-tab-title">{t('Tổng quan cuộc họp nhóm', 'Team Meeting Overview')}</h3>
+                <Dashboard
+                  currentUser={auth.currentUser}
+                  onEnterMeeting={onEnterMeetingRoomFromList}
+                  onOpenCreateMeeting={() => meetings.setIsMeetingModalOpen(true)}
+                />
+              </div>
             )}
             {/* Tab 1: Calendar Scheduling view */}
             {activeTab === 'calendar' && (
-              <>
+              <div className="tab-view-wrapper">
+                <h3 className="section-tab-title">{t('Lịch họp nhóm', 'Group Meeting Schedule')}</h3>
                 <CalendarView
                   currentDate={meetings.currentDate}
                   setCurrentDate={meetings.setCurrentDate}
@@ -335,71 +288,74 @@ function App() {
                   onDeleteMeeting={meetings.handleDeleteMeeting}
                   onCancelMeeting={meetings.handleCancelMeeting}
                 />
-              </>
+              </div>
             )}
 
             {/* Tab 2: Meeting Room Workspace (Autosave, Polls, AI minutes generator) */}
             {activeTab === 'meeting' && (
-              <MeetingRoom
-                activeMeeting={activeMeeting}
-                setActiveMeeting={setActiveMeeting}
-                currentUser={auth.currentUser}
-                refreshReports={refreshReports}
-                setActiveTab={switchTab}
-                triggerNotification={triggerNotification}
-                
-                myNote={meetingRoom.myNote}
-                setMyNote={meetingRoom.setMyNote}
-                savingNote={meetingRoom.savingNote}
-                lastSavedTime={meetingRoom.lastSavedTime}
-                hasUnsavedChanges={meetingRoom.hasUnsavedChanges}
-                saveNoteNow={meetingRoom.saveNoteNow}
-                
-                polls={meetingRoom.polls}
-                isPollModalOpen={meetingRoom.isPollModalOpen}
-                setIsPollModalOpen={meetingRoom.setIsPollModalOpen}
-                newPollQuestion={meetingRoom.newPollQuestion}
-                setNewPollQuestion={meetingRoom.setNewPollQuestion}
-                newPollType={meetingRoom.newPollType}
-                setNewPollType={meetingRoom.setNewPollType}
-                newPollOptions={meetingRoom.newPollOptions}
-                setNewPollOptions={meetingRoom.setNewPollOptions}
-                handleVote={meetingRoom.handleVote}
-                handleAddPoll={meetingRoom.handleAddPoll}
-                handleDeletePoll={meetingRoom.handleDeletePoll}
-                syncMeetingData={meetingRoom.syncMeetingData}
-                setupRealtimePolls={meetingRoom.setupRealtimePolls}
-                handleCompleteMeeting={meetings.handleCompleteMeeting}
-                
-                generatingAI={meetingRoom.generatingAI}
-                aiReportOutput={meetingRoom.aiReportOutput}
-                setAiReportOutput={meetingRoom.setAiReportOutput}
-                reportTitle={meetingRoom.reportTitle}
-                setReportTitle={meetingRoom.setReportTitle}
-                aiStatusText={meetingRoom.aiStatusText}
-                aiError={meetingRoom.aiError}
-                generateAIReport={meetingRoom.generateAIReport}
-                cancelAIReport={meetingRoom.cancelAIReport}
-                handleSaveReport={meetingRoom.handleSaveReport}
-                
-                onlinePlatform={meetingRoom.onlinePlatform}
-                setOnlinePlatform={meetingRoom.setOnlinePlatform}
-                onlineMeetLink={meetingRoom.onlineMeetLink}
-                setOnlineMeetLink={meetingRoom.setOnlineMeetLink}
-                onlineWaitingRoom={meetingRoom.onlineWaitingRoom}
-                setOnlineWaitingRoom={meetingRoom.setOnlineWaitingRoom}
-                onlineAutoRecord={meetingRoom.onlineAutoRecord}
-                setOnlineAutoRecord={meetingRoom.setOnlineAutoRecord}
-                onlineMuteOnEntry={meetingRoom.onlineMuteOnEntry}
-                setOnlineMuteOnEntry={meetingRoom.setOnlineMuteOnEntry}
-                handleSaveOnlineConfig={meetingRoom.handleSaveOnlineConfig}
-              />
+              <div className="tab-view-wrapper">
+                <h3 className="section-tab-title">{t('Phòng họp trực tuyến', 'Online Meeting Room')}</h3>
+                <MeetingRoom
+                  activeMeeting={activeMeeting}
+                  setActiveMeeting={setActiveMeeting}
+                  currentUser={auth.currentUser}
+                  refreshReports={refreshReports}
+                  setActiveTab={switchTab}
+                  triggerNotification={triggerNotification}
+                  
+                  myNote={meetingRoom.myNote}
+                  setMyNote={meetingRoom.setMyNote}
+                  savingNote={meetingRoom.savingNote}
+                  lastSavedTime={meetingRoom.lastSavedTime}
+                  hasUnsavedChanges={meetingRoom.hasUnsavedChanges}
+                  saveNoteNow={meetingRoom.saveNoteNow}
+                  
+                  polls={meetingRoom.polls}
+                  isPollModalOpen={meetingRoom.isPollModalOpen}
+                  setIsPollModalOpen={meetingRoom.setIsPollModalOpen}
+                  newPollQuestion={meetingRoom.newPollQuestion}
+                  setNewPollQuestion={meetingRoom.setNewPollQuestion}
+                  newPollType={meetingRoom.newPollType}
+                  setNewPollType={meetingRoom.setNewPollType}
+                  newPollOptions={meetingRoom.newPollOptions}
+                  setNewPollOptions={meetingRoom.setNewPollOptions}
+                  handleVote={meetingRoom.handleVote}
+                  handleAddPoll={meetingRoom.handleAddPoll}
+                  handleDeletePoll={meetingRoom.handleDeletePoll}
+                  syncMeetingData={meetingRoom.syncMeetingData}
+                  setupRealtimePolls={meetingRoom.setupRealtimePolls}
+                  handleCompleteMeeting={meetings.handleCompleteMeeting}
+                  
+                  generatingAI={meetingRoom.generatingAI}
+                  aiReportOutput={meetingRoom.aiReportOutput}
+                  setAiReportOutput={meetingRoom.setAiReportOutput}
+                  reportTitle={meetingRoom.reportTitle}
+                  setReportTitle={meetingRoom.setReportTitle}
+                  aiStatusText={meetingRoom.aiStatusText}
+                  aiError={meetingRoom.aiError}
+                  generateAIReport={meetingRoom.generateAIReport}
+                  cancelAIReport={meetingRoom.cancelAIReport}
+                  handleSaveReport={meetingRoom.handleSaveReport}
+                  
+                  onlinePlatform={meetingRoom.onlinePlatform}
+                  setOnlinePlatform={meetingRoom.setOnlinePlatform}
+                  onlineMeetLink={meetingRoom.onlineMeetLink}
+                  setOnlineMeetLink={meetingRoom.setOnlineMeetLink}
+                  onlineWaitingRoom={meetingRoom.onlineWaitingRoom}
+                  setOnlineWaitingRoom={meetingRoom.setOnlineWaitingRoom}
+                  onlineAutoRecord={meetingRoom.onlineAutoRecord}
+                  setOnlineAutoRecord={meetingRoom.setOnlineAutoRecord}
+                  onlineMuteOnEntry={meetingRoom.onlineMuteOnEntry}
+                  setOnlineMuteOnEntry={meetingRoom.setOnlineMuteOnEntry}
+                  handleSaveOnlineConfig={meetingRoom.handleSaveOnlineConfig}
+                />
+              </div>
             )}
 
             {/* Tab 3: Report Archives view */}
             {activeTab === 'reports' && (
               <div className="reports-view">
-                <h3 className="reports-title">Kho lưu trữ báo cáo cuộc họp</h3>
+                <h3 className="section-tab-title">{t('Kho lưu trữ báo cáo cuộc họp', 'Meeting Reports Archive')}</h3>
                 
                 {reports.length === 0 ? (
                   <div className="card reports-empty-card">
@@ -457,7 +413,7 @@ function App() {
                             onClick={async () => {
                               if (window.confirm(`Bạn có chắc chắn muốn xóa báo cáo "${report.title}"?`)) {
                                 try {
-                                  await fetch(`/api/reports/${report.id}`, { method: 'DELETE' });
+                                  await Storage.deleteReport(report.id);
                                   await refreshReports();
                                   triggerNotification('[Hệ thống] Đã xóa báo cáo thành công.');
                                 } catch (err) {
@@ -479,6 +435,48 @@ function App() {
               </div>
             )}
           </main>
+
+          {/* Bottom Navigation Bar */}
+          <nav className="bottom-nav-tabs">
+            <div className="bottom-nav-container">
+              <button 
+                className={`bottom-nav-item ${activeTab === 'dashboard' ? 'active' : ''}`}
+                onClick={() => switchTab('dashboard')}
+              >
+                <LayoutDashboard size={20} />
+                <span>{t('Tổng quan', 'Dashboard')}</span>
+              </button>
+
+              <button 
+                className={`bottom-nav-item ${activeTab === 'calendar' ? 'active' : ''}`}
+                onClick={() => switchTab('calendar')}
+              >
+                <Calendar size={20} />
+                <span>{t('Lịch Họp', 'Calendar')}</span>
+              </button>
+
+              <button 
+                className={`bottom-nav-item ${activeTab === 'meeting' ? 'active' : ''}`}
+                onClick={() => switchTab('meeting')}
+              >
+                <Video size={20} />
+                <span>{t('Phòng Họp', 'Meeting Room')}</span>
+              </button>
+
+              <button 
+                className={`bottom-nav-item ${activeTab === 'reports' ? 'active' : ''}`}
+                onClick={() => switchTab('reports')}
+              >
+                <div className="bottom-nav-icon-wrap">
+                  <FileText size={20} />
+                  {reports.length > 0 && (
+                    <span className="bottom-nav-badge">{reports.length}</span>
+                  )}
+                </div>
+                <span>{t('Báo Cáo', 'Reports')}</span>
+              </button>
+            </div>
+          </nav>
 
           {/* Form Modal for Creating/Editing Meetings */}
           <MeetingFormModal

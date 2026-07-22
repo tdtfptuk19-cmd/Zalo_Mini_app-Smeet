@@ -12,6 +12,11 @@ export const getApiBase = () => {
   if (customUrl && customUrl.trim()) {
     return customUrl.trim().replace(/\/+$/, '');
   }
+
+  // Environment variable VITE_API_URL if configured
+  if (import.meta.env.VITE_API_URL && import.meta.env.VITE_API_URL.trim()) {
+    return import.meta.env.VITE_API_URL.trim().replace(/\/+$/, '');
+  }
   
   const hostname = window.location.hostname;
   
@@ -42,8 +47,9 @@ const getAuthHeaders = () => {
 
 // Safe Fetch Wrapper: Handles network & HTTP error formatting
 const safeFetch = async (url, options = {}) => {
+  let res;
   try {
-    const isAuthRoute = url.includes('/api/auth/');
+    const isAuthRoute = url.includes('/api/auth/') || url.includes('/api/users/lookup');
     const authHeaders = isAuthRoute ? {} : getAuthHeaders();
 
     const mergedOptions = {
@@ -55,30 +61,21 @@ const safeFetch = async (url, options = {}) => {
       }
     };
 
-    const res = await fetch(url, mergedOptions);
-    if (!res.ok) {
-      let errMsg = `Server status ${res.status}`;
-      try {
-        const errData = await res.json();
-        errMsg = errData.error || errData.message || errMsg;
-      } catch {}
-      throw new Error(errMsg);
-    }
-    return res;
-  } catch (e) {
-    if (e.message && (
-      e.message.includes('Trùng') ||
-      e.message.includes('Không có ghi chú') ||
-      e.message.includes('Chỉ') ||
-      e.message.includes('Không có quyền') ||
-      e.message.includes('Unauthorized') ||
-      e.message.includes('Server status')
-    )) {
-      throw e;
-    }
-    console.error("Network error calling Live API:", e);
+    res = await fetch(url, mergedOptions);
+  } catch (networkErr) {
+    console.error("Network error calling Live API:", networkErr);
     throw new Error("Không thể kết nối đến Backend Server trên Vercel. Vui lòng kiểm tra lại đường dẫn VITE_API_URL hoặc kết nối mạng.");
   }
+
+  if (!res.ok) {
+    let errMsg = `Server status ${res.status}`;
+    try {
+      const errData = await res.json();
+      errMsg = errData.error || errData.message || errMsg;
+    } catch {}
+    throw new Error(errMsg);
+  }
+  return res;
 };
 
 export const Storage = {
@@ -108,6 +105,12 @@ export const Storage = {
       method: 'POST',
       body: JSON.stringify(zaloUserInfo)
     });
+    return res.json();
+  },
+
+  // Public lookup for OTP login (no session required)
+  lookupUsersByPhone: async (phone) => {
+    const res = await safeFetch(`${getApiBase()}/api/users/lookup?phone=${encodeURIComponent(phone)}`);
     return res.json();
   },
 
