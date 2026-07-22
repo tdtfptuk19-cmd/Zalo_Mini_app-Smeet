@@ -4030,5 +4030,45 @@ body.dark-theme,
   border-color: #243042 !important;
 }
 
+/* File Attachment Items in Dark Mode */
+.dark-theme .file-attachment-item {
+  background-color: #1a2332 !important;
+  border: 1px solid #2d3b50 !important;
+  color: #f1f5f9 !important;
+}
+
+.dark-theme .file-name {
+  color: #f1f5f9 !important;
+  font-weight: 600 !important;
+}
+
+.dark-theme .file-type-icon {
+  background-color: rgba(56, 189, 248, 0.2) !important;
+  color: #38bdf8 !important;
+  font-weight: 700 !important;
+}
+
+.dark-theme .file-type-icon.red {
+  background-color: rgba(239, 68, 68, 0.25) !important;
+  color: #fca5a5 !important;
+  font-weight: 700 !important;
+}
+
+.dark-theme .file-download-btn {
+  color: #94a3b8 !important;
+  background-color: rgba(255, 255, 255, 0.06) !important;
+  border-radius: 6px !important;
+  padding: 6px !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  transition: all 0.2s ease !important;
+}
+
+.dark-theme .file-download-btn:hover {
+  color: #38bdf8 !important;
+  background-color: rgba(56, 189, 248, 0.2) !important;
+}
+
 
 
