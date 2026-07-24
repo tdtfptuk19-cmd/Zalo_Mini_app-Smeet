@@ -11,6 +11,7 @@ export const SettingsDrawer = React.memo(({
   users,
   handleLogout,
   handleSavePersonalPhone,
+  handleSavePersonalName,
   handleAddMember,
   handleDeleteMember,
   handleUserChange,
@@ -34,9 +35,22 @@ export const SettingsDrawer = React.memo(({
   const [isEditingPhone, setIsEditingPhone] = useState(false);
   const [personalPhone, setPersonalPhone] = useState(currentUser?.phone || '');
 
+  // Local state for name editing
+  const [isEditingName, setIsEditingName] = useState(false);
+  const [personalName, setPersonalName] = useState(currentUser?.name || '');
+
+  // Sync local states if currentUser changes
+  useEffect(() => {
+    if (currentUser) {
+      setPersonalPhone(currentUser.phone || '');
+      setPersonalName(currentUser.name || '');
+    }
+  }, [currentUser]);
+
   // Local states for Admin's add member form
   const [newMemberName, setNewMemberName] = useState('');
   const [newMemberPhone, setNewMemberPhone] = useState('09');
+  const [newMemberEmail, setNewMemberEmail] = useState('');
   const [newMemberRole, setNewMemberRole] = useState('member');
 
   // Local states for bug reporting
@@ -73,12 +87,20 @@ export const SettingsDrawer = React.memo(({
     }
   };
 
+  const onLocalSaveName = async () => {
+    const success = await handleSavePersonalName(personalName);
+    if (success) {
+      setIsEditingName(false);
+    }
+  };
+
   const onLocalAddMemberSubmit = async (e) => {
     e.preventDefault();
-    const success = await handleAddMember(newMemberName, newMemberPhone, newMemberRole);
+    const success = await handleAddMember(newMemberName, newMemberPhone, newMemberRole, newMemberEmail);
     if (success) {
       setNewMemberName('');
       setNewMemberPhone('09');
+      setNewMemberEmail('');
       triggerNotification(`[Hệ thống] Đã thêm thành viên "${newMemberName}" thành công.`);
     }
   };
@@ -163,7 +185,32 @@ export const SettingsDrawer = React.memo(({
               </div>
               
               <div className="profile-details-column">
-                <span className="profile-details-name">{currentUser.name}</span>
+                {isEditingName ? (
+                  <div className="profile-name-edit-row" style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+                    <input 
+                      type="text"
+                      value={personalName}
+                      onChange={(e) => setPersonalName(e.target.value)}
+                      className="input-text name-edit-input"
+                      placeholder="Họ và tên mới..."
+                      style={{ padding: '6px 10px', fontSize: '0.9rem', borderRadius: '8px', border: '1px solid var(--border-color)', width: '130px' }}
+                      autoFocus
+                    />
+                    <button type="button" onClick={onLocalSaveName} className="btn btn-primary btn-save-phone-mini" style={{ padding: '6px 12px', fontSize: '0.8rem', borderRadius: '8px' }}>
+                      Lưu
+                    </button>
+                    <button type="button" onClick={() => { setIsEditingName(false); setPersonalName(currentUser.name); }} className="btn btn-secondary btn-cancel-phone-mini" style={{ padding: '6px 12px', fontSize: '0.8rem', borderRadius: '8px' }}>
+                      Hủy
+                    </button>
+                  </div>
+                ) : (
+                  <div className="profile-name-display-row" style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
+                    <span className="profile-details-name" style={{ fontWeight: 'bold', fontSize: '1.1rem' }}>{currentUser.name}</span>
+                    <button type="button" onClick={() => { setPersonalName(currentUser.name); setIsEditingName(true); }} className="btn-edit-phone-link" style={{ background: 'none', border: 'none', color: 'var(--primary-color)', fontSize: '0.8rem', cursor: 'pointer', padding: 0 }}>
+                      Sửa
+                    </button>
+                  </div>
+                )}
                 
                 {isEditingPhone ? (
                   <div className="profile-phone-edit-row">
@@ -356,6 +403,18 @@ export const SettingsDrawer = React.memo(({
                       required
                     />
                   </div>
+                  <div className="form-group">
+                    <label htmlFor="new-mem-email">Địa chỉ Email</label>
+                    <input 
+                      id="new-mem-email"
+                      type="email" 
+                      placeholder="email@example.com" 
+                      value={newMemberEmail}
+                      onChange={(e) => setNewMemberEmail(e.target.value)}
+                      className="input-text input-mini"
+                      required
+                    />
+                  </div>
                   <div className="form-group-row-mini">
                     <div className="form-group" style={{ flex: 2 }}>
                       <label htmlFor="new-mem-phone">Số điện thoại</label>
@@ -396,7 +455,9 @@ export const SettingsDrawer = React.memo(({
                         <img src={u.avatar} alt={u.name} className="member-card-avatar" />
                         <div className="member-card-text">
                           <span className="member-card-name">{u.name}</span>
-                          <span className="member-card-phone">{u.phone}</span>
+                          <span className="member-card-phone">
+                            {u.phone}{u.email && ` • ${u.email}`}
+                          </span>
                         </div>
                       </div>
                       <div className="member-card-actions">

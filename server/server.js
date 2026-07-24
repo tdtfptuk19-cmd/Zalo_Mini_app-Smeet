@@ -5,8 +5,9 @@ import https from 'https';
 import http from 'http';
 import nodemailer from 'nodemailer';
 import { GoogleGenerativeAI } from '@google/generative-ai';
+import crypto from 'crypto';
 import { db } from './db.js';
-import { User, Meeting, Note, Poll, Report, NotifConfig } from './models/Schemas.js';
+import { User, Meeting, Note, Poll, Report, NotifConfig, Otp } from './models/Schemas.js';
 
 dotenv.config();
 
@@ -276,15 +277,105 @@ console.log('[Reminder] ✅ Meeting reminder scheduler đã khởi động (ki�
 const ZALO_DEFAULT_AVATAR = 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgMTAwIj48Y2lyY2xlIGN4PSI1MCIgY3k9IjUwIiByPSI1MCIgZmlsbD0iI0U2RjBGRiIvPjxjaXJjbGUgY3g9IjUwIiBjeT0iMzgiIHI9IjE4IiBmaWxsPSIjMDA2OEZGIi8+PHBhdGggZD0iTTUwIDYwYy0xOCAwLTMwIDgtMzAgMTh2NGg2MHYtNGMwLTEwLTEyLTE4LTMwLTE4eiIgZmlsbD0iIzAwNjhGRiIvPjwvc3ZnPg==';
 
 // ─────────────────────────────────────────────────────────────────────
-// MIDDLEWARE: requireAuth – kiểm tra header x-user-id hợp lệ
+// JWT Helpers using built-in Node.js crypto module
+// ─────────────────────────────────────────────────────────────────────
+const base64UrlEncode = (str) => {
+  return Buffer.from(str)
+    .toString('base64')
+    .replace(/=/g, '')
+    .replace(/\+/g, '-')
+    .replace(/\//g, '_');
+};
+
+const base64UrlDecode = (base64Url) => {
+  let base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+  while (base64.length % 4) {
+    base64 += '=';
+  }
+  return Buffer.from(base64, 'base64').toString();
+};
+
+const signToken = (payload, secret, expiresInSeconds = 3 * 24 * 60 * 60) => {
+  const header = { alg: 'HS256', typ: 'JWT' };
+  const headerStr = base64UrlEncode(JSON.stringify(header));
+  
+  const payloadWithExp = {
+    ...payload,
+    exp: Math.floor(Date.now() / 1000) + expiresInSeconds
+  };
+  const payloadStr = base64UrlEncode(JSON.stringify(payloadWithExp));
+  
+  const signature = crypto
+    .createHmac('sha256', secret)
+    .update(`${headerStr}.${payloadStr}`)
+    .digest('base64url');
+    
+  return `${headerStr}.${payloadStr}.${signature}`;
+};
+
+const verifyToken = (token, secret) => {
+  try {
+    const parts = token.split('.');
+    if (parts.length !== 3) return null;
+    const [headerStr, payloadStr, signature] = parts;
+    
+    const expectedSignature = crypto
+      .createHmac('sha256', secret)
+      .update(`${headerStr}.${payloadStr}`)
+      .digest('base64url');
+      
+    if (signature !== expectedSignature) return null;
+    
+    const payload = JSON.parse(base64UrlDecode(payloadStr));
+    if (payload.exp && Date.now() / 1000 > payload.exp) {
+      return null;
+    }
+    return payload;
+  } catch (err) {
+    return null;
+  }
+};
+
+// ─────────────────────────────────────────────────────────────────────
+// MIDDLEWARE: requireAuth – kiểm tra header x-user-id hợp lệ hoặc JWT token
 // ─────────────────────────────────────────────────────────────────────
 const requireAuth = async (req, res, next) => {
-  const userId = req.headers['x-user-id'];
-  if (!userId) {
-    return res.status(401).json({ error: 'Unauthorized: thiếu x-user-id header.' });
+  const authHeader = req.headers['authorization'];
+  let userId = req.headers['x-user-id'];
+
+  if (authHeader && authHeader.startsWith('Bearer ')) {
+    const token = authHeader.substring(7);
+    const decoded = verifyToken(token, process.env.JWT_SECRET || 'smeet_secret_key');
+    if (decoded) {
+      userId = decoded.id;
+    } else {
+      return res.status(401).json({ error: 'Unauthorized: token không hợp lệ hoặc đã hết hạn.' });
+    }
   }
+
+  if (!userId) {
+    return res.status(401).json({ error: 'Unauthorized: thiếu token hoặc x-user-id.' });
+  }
+
   try {
-    const user = await User.findOne({ id: userId });
+    let user = await User.findOne({ id: userId });
+    
+    // Automatically recreate the mock user u1 in development if missing from DB
+    if (!user && userId === 'u1') {
+      user = new User({
+        id: 'u1',
+        name: 'Nguyễn Văn A (Host)',
+        email: 'nguyenvana@gmail.com',
+        phone: '0912345678',
+        role: 'admin',
+        roles: ['admin'],
+        avatar: ZALO_DEFAULT_AVATAR,
+        is_email_verified: false // allows testing OTP flow on browser
+      });
+      await user.save();
+      console.log('[Dev] Automatically recreated mock user u1 in DB');
+    }
+
     if (!user) {
       return res.status(401).json({ error: 'Unauthorized: user không tồn tại trong hệ thống.' });
     }
@@ -337,30 +428,206 @@ app.post('/api/auth/zalo', async (req, res) => {
   }
 
   try {
-    let user = await User.findOne({ id });
+    let user = await User.findOne({ $or: [{ zalo_id: id }, { id: id }] });
 
-    if (user) {
+    if (user && user.is_email_verified) {
       // Cập nhật thông tin profile Zalo
       user.name = name || user.name;
       user.avatar = avatar || user.avatar;
       if (phone) user.phone = phone;
+      if (!user.zalo_id) user.zalo_id = id;
       await user.save();
 
-      // Nếu user đã có email -> Cho phép đăng nhập luôn
-      if (user.email) {
-        return res.json({ success: true, needEmailLink: false, user });
-      }
+      // Tạo JWT token
+      const token = signToken({ id: user.id, zalo_id: id }, process.env.JWT_SECRET || 'smeet_secret_key');
+
+      return res.json({ success: true, token, user });
     }
 
-    // Nếu chưa có user hoặc user chưa có email -> Báo cho client hiển thị form liên kết Email
+    // Nếu chưa có user hoặc user chưa verify Email -> Báo cho client hiển thị form liên kết/xác thực Email
     return res.json({
-      success: true,
-      needEmailLink: true,
+      success: false,
+      needEmail: true,
       zaloUser: { id, name, avatar, phone }
     });
   } catch (err) {
     console.error('Auth API error:', err);
     res.status(500).json({ error: 'Có lỗi xảy ra khi xác thực người dùng.' });
+  }
+});
+
+// API send-otp: Nhận Email + Zalo ID, tạo OTP 6 số (hạn 3-5 phút) và gửi
+app.post('/api/auth/send-otp', async (req, res) => {
+  const email = (req.body.email || '').trim().toLowerCase();
+  const zalo_id = (req.body.zalo_id || '').trim();
+
+  if (!email || !zalo_id) {
+    return res.status(400).json({ error: 'Thiếu email hoặc Zalo ID.' });
+  }
+
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  if (!emailRegex.test(email)) {
+    return res.status(400).json({ error: 'Địa chỉ email không đúng định dạng.' });
+  }
+
+  const code = Math.floor(100000 + Math.random() * 900000).toString();
+  const expiresAt = new Date(Date.now() + 5 * 60 * 1000); // 5 phút
+
+  try {
+    // Lưu vào database otps, trước hết xóa các OTP cũ
+    await Otp.deleteMany({ email, zalo_id });
+    const newOtp = new Otp({ email, zalo_id, code, expiresAt });
+    await newOtp.save();
+
+    const htmlContent = `
+      <div style="font-family: Arial, sans-serif; max-width: 500px; margin: 0 auto; padding: 24px; border: 1px solid #e2e8f0; border-radius: 12px; background-color: #ffffff;">
+        <h2 style="color: #0068ff; text-align: center; margin-bottom: 8px;">Smeet Zalo Mini App</h2>
+        <p style="text-align: center; color: #64748b; font-size: 14px; margin-top: 0;">Mã xác thực Gmail OTP</p>
+        <div style="background-color: #f0f7ff; padding: 16px; border-radius: 8px; text-align: center; margin: 20px 0;">
+          <span style="font-size: 32px; font-weight: bold; letter-spacing: 6px; color: #0068ff;">${code}</span>
+        </div>
+        <p style="color: #334155; font-size: 14px; text-align: center;">Mã xác thực có hiệu lực trong <strong>5 phút</strong>. Vui lòng không chia sẻ mã này với bất kỳ ai.</p>
+        <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 20px 0;" />
+        <p style="font-size: 12px; color: #94a3b8; text-align: center;">Nếu bạn không yêu cầu mã này, vui lòng bỏ qua email này.</p>
+      </div>
+    `;
+
+    const emailRes = await sendEmailHelper({
+      to: email,
+      subject: `[Smeet] Mã xác thực OTP: ${code}`,
+      html: htmlContent
+    });
+
+    if (emailRes.success) {
+      return res.json({
+        success: true,
+        message: `Mã OTP đã gửi đến hộp thư ${email}!`,
+        mode: 'real'
+      });
+    } else {
+      console.log(`[Email OTP] ℹ️ (Chế độ mô phỏng) Mã OTP cho ${email} là: ${code}`);
+      return res.json({
+        success: true,
+        message: `[Mô phỏng] Mã OTP của bạn là ${code}.`,
+        code,
+        mode: 'simulated'
+      });
+    }
+  } catch (err) {
+    console.error('Send OTP error:', err);
+    res.status(500).json({ error: 'Có lỗi xảy ra khi gửi mã OTP: ' + err.message });
+  }
+});
+
+// API verify-otp: User nhập OTP, kiểm tra, cập nhật email và is_email_verified = true
+app.post('/api/auth/verify-otp', async (req, res) => {
+  const email = (req.body.email || '').trim().toLowerCase();
+  const zalo_id = (req.body.zalo_id || '').trim();
+  const otp = (req.body.otp || '').trim();
+  const { name, avatar, phone, roles } = req.body;
+
+  if (!email || !zalo_id || !otp) {
+    return res.status(400).json({ error: 'Thiếu email, Zalo ID hoặc mã OTP.' });
+  }
+
+  try {
+    const cached = await Otp.findOne({ email, zalo_id, code: otp });
+    if (!cached) {
+      return res.status(400).json({ error: 'Mã OTP không chính xác hoặc không tồn tại.' });
+    }
+
+    if (new Date() > cached.expiresAt) {
+      await Otp.deleteMany({ email, zalo_id });
+      return res.status(400).json({ error: 'Mã OTP đã hết hạn. Vui lòng yêu cầu gửi lại.' });
+    }
+
+    // OTP hợp lệ — xóa khỏi DB để tránh tái sử dụng
+    await Otp.deleteOne({ _id: cached._id });
+
+    // Tìm xem email này đã tồn tại tài khoản chưa
+    let user = await User.findOne({ email });
+
+    if (user) {
+      // Email đã có sẵn tài khoản: Liên kết Zalo ID vào tài khoản này
+      const oldId = user.id;
+
+      // Kiểm tra xem Zalo ID này đã được gán cho user nào khác chưa để tránh trùng lặp unique index
+      const existingUserWithId = await User.findOne({ $or: [{ id: zalo_id }, { zalo_id }] });
+      if (existingUserWithId && existingUserWithId._id.toString() !== user._id.toString()) {
+        await User.deleteOne({ _id: existingUserWithId._id });
+        console.log(`[Verify OTP] 🗑️ Đã xóa user tạm thời trùng Zalo ID: ${zalo_id}`);
+      }
+
+      user.id = zalo_id;
+      user.zalo_id = zalo_id;
+      user.is_email_verified = true;
+      if (name) user.name = name;
+      if (avatar) user.avatar = avatar;
+      if (phone) user.phone = phone;
+      await user.save();
+      console.log(`[Verify OTP] ✅ Đã liên kết Zalo ID ${zalo_id} và verify email cho: ${email}`);
+
+      // Cập nhật tất cả các liên kết dữ liệu cũ của user (từ oldId sang zalo_id)
+      if (oldId && oldId !== zalo_id) {
+        await Promise.all([
+          Meeting.updateMany({ createdBy: oldId }, { createdBy: zalo_id }),
+          Note.updateMany({ userId: oldId }, { userId: zalo_id }),
+          Report.updateMany({ createdBy: oldId }, { createdBy: zalo_id }),
+          Poll.updateMany(
+            { "answers.userId": oldId },
+            { $set: { "answers.$[elem].userId": zalo_id } },
+            { arrayFilters: [{ "elem.userId": oldId }] }
+          )
+        ]);
+        console.log(`[Verify OTP] 🔄 Đã cập nhật tất cả dữ liệu tham chiếu từ ${oldId} sang ${zalo_id}`);
+      }
+    } else {
+      // Email chưa có tài khoản: Kiểm tra xem đã có user trùng Zalo ID chưa
+      const existingUserWithId = await User.findOne({ $or: [{ id: zalo_id }, { zalo_id }] });
+      if (existingUserWithId) {
+        existingUserWithId.email = email;
+        existingUserWithId.zalo_id = zalo_id;
+        existingUserWithId.is_email_verified = true;
+        if (name) existingUserWithId.name = name;
+        if (avatar) existingUserWithId.avatar = avatar;
+        if (phone) existingUserWithId.phone = phone;
+        await existingUserWithId.save();
+        user = existingUserWithId;
+        console.log(`[Verify OTP] ✅ Cập nhật Email & Verify vào tài khoản Zalo đã có sẵn: ${user.name}`);
+      } else {
+        // Tạo tài khoản mới hoàn toàn
+        const rolesArr = Array.isArray(roles) ? roles : (roles ? [roles] : ['member']);
+        const primaryRole = rolesArr.includes('admin') ? 'admin'
+          : rolesArr.includes('delegated') ? 'delegated'
+          : 'member';
+
+        user = new User({
+          id: zalo_id,
+          zalo_id,
+          name: name || 'Người dùng Zalo',
+          email,
+          is_email_verified: true,
+          phone: phone || undefined,
+          avatar: avatar || ZALO_DEFAULT_AVATAR,
+          role: primaryRole,
+          roles: rolesArr
+        });
+        await user.save();
+        console.log(`[Verify OTP] ✅ Tạo tài khoản mới và verify email thành công: ${user.name} (${email})`);
+      }
+    }
+
+    // Tạo JWT token
+    const token = signToken({ id: user.id, zalo_id: user.zalo_id }, process.env.JWT_SECRET || 'smeet_secret_key');
+
+    res.json({
+      success: true,
+      token,
+      user
+    });
+  } catch (err) {
+    console.error('Verify OTP error:', err);
+    res.status(500).json({ error: 'Không thể xác thực OTP: ' + err.message });
   }
 });
 
@@ -378,6 +645,16 @@ app.post('/api/auth/zalo-link-email', async (req, res) => {
 
     if (user) {
       // Email đã có sẵn tài khoản: Liên kết Zalo ID vào tài khoản này
+      const oldId = user.id;
+
+      // Kiểm tra xem Zalo ID này đã được gán cho user nào khác chưa để tránh trùng lặp unique index
+      const existingUserWithId = await User.findOne({ id });
+      if (existingUserWithId && existingUserWithId._id.toString() !== user._id.toString()) {
+        // Xóa tài khoản Zalo rác/tạm thời này đi để nhường Zalo ID cho tài khoản email chính
+        await User.deleteOne({ _id: existingUserWithId._id });
+        console.log(`[Zalo Link] 🗑️ Đã xóa user tạm thời trùng Zalo ID: ${id}`);
+      }
+
       user.id = id; // Cập nhật Zalo ID mới vào tài khoản có sẵn
       if (name) user.name = name;
       if (avatar) user.avatar = avatar;
@@ -385,24 +662,58 @@ app.post('/api/auth/zalo-link-email', async (req, res) => {
       // Giữ nguyên quyền hạn (roles) cũ của tài khoản email để đảm bảo bảo mật
       await user.save();
       console.log(`[Zalo Link] ✅ Đã liên kết Zalo ID ${id} vào tài khoản email: ${cleanEmail}`);
+
+      // Cập nhật tất cả các liên kết dữ liệu cũ của user (từ oldId sang id mới của Zalo)
+      if (oldId && oldId !== id) {
+        await Promise.all([
+          Meeting.updateMany({ createdBy: oldId }, { createdBy: id }),
+          Note.updateMany({ userId: oldId }, { userId: id }),
+          Report.updateMany({ createdBy: oldId }, { createdBy: id }),
+          Poll.updateMany(
+            { "answers.userId": oldId },
+            { $set: { "answers.$[elem].userId": id } },
+            { arrayFilters: [{ "elem.userId": oldId }] }
+          )
+        ]);
+        console.log(`[Zalo Link] 🔄 Đã cập nhật tất cả dữ liệu tham chiếu từ ${oldId} sang ${id}`);
+      }
     } else {
       // Email chưa có tài khoản: Tạo tài khoản mới
-      const rolesArr = Array.isArray(roles) ? roles : (roles ? [roles] : ['member']);
-      const primaryRole = rolesArr.includes('admin') ? 'admin'
-        : rolesArr.includes('delegated') ? 'delegated'
-        : 'member';
+      // Để chắc chắn không bị lỗi E11000 khi tạo mới: kiểm tra xem id đã tồn tại chưa
+      const existingUserWithId = await User.findOne({ id });
+      if (existingUserWithId) {
+        // Nếu đã có user trùng Zalo ID (nhưng email khác/trống), cập nhật email và thông tin vào user đó luôn
+        existingUserWithId.email = cleanEmail;
+        if (name) existingUserWithId.name = name;
+        if (avatar) existingUserWithId.avatar = avatar;
+        if (phone) existingUserWithId.phone = phone;
+        const rolesArr = Array.isArray(roles) ? roles : (roles ? [roles] : ['member']);
+        const primaryRole = rolesArr.includes('admin') ? 'admin'
+          : rolesArr.includes('delegated') ? 'delegated'
+          : 'member';
+        existingUserWithId.role = primaryRole;
+        existingUserWithId.roles = rolesArr;
+        await existingUserWithId.save();
+        user = existingUserWithId;
+        console.log(`[Zalo Link] ✅ Cập nhật Email vào tài khoản Zalo đã có sẵn: ${user.name} (${cleanEmail})`);
+      } else {
+        const rolesArr = Array.isArray(roles) ? roles : (roles ? [roles] : ['member']);
+        const primaryRole = rolesArr.includes('admin') ? 'admin'
+          : rolesArr.includes('delegated') ? 'delegated'
+          : 'member';
 
-      user = new User({
-        id,
-        name: name || 'Người dùng Zalo',
-        email: cleanEmail,
-        phone: phone || undefined,
-        avatar: avatar || ZALO_DEFAULT_AVATAR,
-        role: primaryRole,
-        roles: rolesArr
-      });
-      await user.save();
-      console.log(`[Zalo Link] ✅ Tạo tài khoản mới qua liên kết Zalo: ${user.name} (${cleanEmail})`);
+        user = new User({
+          id,
+          name: name || 'Người dùng Zalo',
+          email: cleanEmail,
+          phone: phone || undefined,
+          avatar: avatar || ZALO_DEFAULT_AVATAR,
+          role: primaryRole,
+          roles: rolesArr
+        });
+        await user.save();
+        console.log(`[Zalo Link] ✅ Tạo tài khoản mới qua liên kết Zalo: ${user.name} (${cleanEmail})`);
+      }
     }
 
     res.json({ success: true, user });

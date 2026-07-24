@@ -48,6 +48,15 @@ export function useAuth(triggerNotification) {
   const [isEditingPhone, setIsEditingPhone] = useState(false);
   const [isAvatarModalOpen, setIsAvatarModalOpen] = useState(false);
 
+  // Email verification modal states
+  const [isVerificationModalOpen, setIsVerificationModalOpen] = useState(false);
+  const [verificationCallback, setVerificationCallback] = useState(null);
+
+  const openVerificationModal = useCallback((callback) => {
+    setVerificationCallback(() => callback);
+    setIsVerificationModalOpen(true);
+  }, []);
+
   // Load initial data (only when user is authenticated)
   const initUsers = useCallback(async () => {
     const loggedIn = await Storage.getLoggedInUser();
@@ -100,18 +109,26 @@ export function useAuth(triggerNotification) {
       const res = await getUserInfo({});
       if (res?.userInfo) {
         const zaloUser = res.userInfo;
+        const ZALO_DEFAULT_AVATAR = 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgMTAwIj48Y2lyY2xlIGN4PSI1MCIgY3k9IjUwIiByPSI1MCIgZmlsbD0iI0U2RjBGRiIvPjxjaXJjbGUgY3g9IjUwIiBjeT0iMzgiIHI9IjE4IiBmaWxsPSIjMDA2OEZGIi8+PHBhdGggZD0iTTUwIDYwYy0xOCAwLTMwIDgtMzAgMTh2NGg2MHYtNGMwLTEwLTEyLTE4LTMwLTE4eiIgZmlsbD0iIzAwNjhGRiIvPjwvc3ZnPg==';
         const apiRes = await Storage.authenticateZalo({
           id: zaloUser.id,
           name: zaloUser.name,
-          avatar: zaloUser.avatar
+          avatar: zaloUser.avatar || ZALO_DEFAULT_AVATAR
         });
 
-        if (apiRes.needEmailLink) {
-          // Zalo chưa liên kết email -> Lưu Zalo profile để hiển thị form nhập email
-          setZaloTempProfile(apiRes.zaloUser);
-          setIsRegistering(true);
+        if (apiRes.needEmail || apiRes.needEmailLink) {
+          // Đăng nhập tạm thời với tài khoản chưa verify email
+          const tempUser = {
+            id: apiRes.zaloUser.id,
+            name: apiRes.zaloUser.name || 'Người dùng Zalo',
+            avatar: apiRes.zaloUser.avatar || ZALO_DEFAULT_AVATAR,
+            is_email_verified: false
+          };
+          setCurrentUser(tempUser);
+          await Storage.setLoggedInUser(tempUser);
+          resetLoginStates();
         } else if (apiRes.user) {
-          // Zalo đã liên kết email -> Đăng nhập thành công
+          // Zalo đã liên kết và verify email -> Đăng nhập thành công
           setCurrentUser(apiRes.user);
           await Storage.setLoggedInUser(apiRes.user);
           resetLoginStates();
@@ -121,16 +138,17 @@ export function useAuth(triggerNotification) {
       }
     } catch (err) {
       console.warn("Zalo SDK auth failed, using Mock Admin for simulation/browser testing:", err);
-      // Giả lập cho trình duyệt: Đăng nhập thẳng bằng tài khoản Nguyễn Văn A có sẵn
+      // Giả lập cho trình duyệt: Đăng nhập thẳng bằng tài khoản Nguyễn Văn A chưa verify để có thể test popup
       try {
         const mockUser = {
-          id: 'mock_admin_123',
+          id: 'u1',
           name: 'Nguyễn Văn A (Host)',
           avatar: 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgMTAwIj48Y2lyY2xlIGN4PSI1MCIgY3k9IjUwIiByPSI1MCIgZmlsbD0iI0U2RjBGRiIvPjxjaXJjbGUgY3g9IjUwIiBjeT0iMzgiIHI9IjE4IiBmaWxsPSIjMDA2OEZGIi8+PHBhdGggZD0iTTUwIDYwYy0xOCAwLTMwIDgtMzAgMTh2NGg2MHYtNGMwLTEwLTEyLTE4LTMwLTE4eiIgZmlsbD0iIzAwNjhGRiIvPjwvc3ZnPg==',
           email: 'nguyenvana@gmail.com',
           phone: '0912345678',
           role: 'admin',
-          roles: ['admin']
+          roles: ['admin'],
+          is_email_verified: false // Cho phép test luồng OTP dễ dàng trên browser
         };
         setCurrentUser(mockUser);
         await Storage.setLoggedInUser(mockUser);
@@ -155,26 +173,11 @@ export function useAuth(triggerNotification) {
       return false;
     }
 
-    try {
-      const payload = {
-        ...zaloTempProfile,
-        email: email.trim().toLowerCase(),
-        roles: roles || ['member']
-      };
-
-      const res = await Storage.linkZaloEmail(payload);
-      if (res && res.user) {
-        setCurrentUser(res.user);
-        await Storage.setLoggedInUser(res.user);
-        resetLoginStates();
-        setTimeout(() => requestNotificationPermission(true), 500);
-        return true;
-      }
-      return false;
-    } catch (err) {
-      setLoginError(err.message || 'Lỗi khi liên kết tài khoản. Vui lòng thử lại.');
-      return false;
-    }
+    // Mở popup xác thực OTP trực tiếp từ Auth page
+    openVerificationModal(() => {
+      resetLoginStates();
+    });
+    return true;
   };
 
   const resetLoginStates = () => {
@@ -216,13 +219,36 @@ export function useAuth(triggerNotification) {
     }
   };
 
-  const handleAddMember = async (name, phone, role) => {
+  const handleSavePersonalName = async (newName) => {
+    if (!newName || !newName.trim()) {
+      triggerNotification("[Lỗi] Tên người dùng không được để trống.");
+      return false;
+    }
+    try {
+      const updatedUser = { ...currentUser, name: newName.trim() };
+      const savedUser = await Storage.saveUser(updatedUser);
+      
+      setCurrentUser(savedUser);
+      await Storage.setLoggedInUser(savedUser);
+      
+      await initUsers();
+      triggerNotification("[Hệ thống] Cập nhật họ và tên thành công!");
+      return true;
+    } catch (err) {
+      console.error(err);
+      triggerNotification("[Lỗi] " + (err.message || "Có lỗi xảy ra khi lưu họ và tên."));
+      return false;
+    }
+  };
+
+  const handleAddMember = async (name, phone, role, email = '') => {
     if (!name.trim()) return false;
     try {
       await Storage.saveUser({
         name: name.trim(),
         phone: phone.trim(),
-        role: role
+        role: role,
+        email: email.trim().toLowerCase() || undefined
       });
       await initUsers();
       return true;
@@ -302,11 +328,17 @@ export function useAuth(triggerNotification) {
     handleLinkEmailAndLogin,
     handleLogout,
     handleSavePersonalPhone,
+    handleSavePersonalName,
     handleAddMember,
     handleDeleteMember,
     toggleUserRole,
     handleAvatarChange,
     resetLoginStates,
+    isVerificationModalOpen,
+    setIsVerificationModalOpen,
+    verificationCallback,
+    setVerificationCallback,
+    openVerificationModal,
     REGISTRATION_OPEN
   };
 }

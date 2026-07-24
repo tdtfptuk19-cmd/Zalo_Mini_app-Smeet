@@ -13,36 +13,41 @@ export const getApiBase = () => {
     return customUrl.trim().replace(/\/+$/, '');
   }
 
-  // Environment variable VITE_API_URL if configured
-  if (import.meta.env.VITE_API_URL && import.meta.env.VITE_API_URL.trim()) {
-    return import.meta.env.VITE_API_URL.trim().replace(/\/+$/, '');
-  }
-  
   const hostname = window.location.hostname;
   
   // If running locally in browser or simulator (localhost / 127.0.0.1)
   if (hostname === 'localhost' || hostname === '127.0.0.1') {
     return ''; // Uses relative URL via Vite development proxy
   }
+
+  // Environment variable VITE_API_URL if configured
+  if (import.meta.env.VITE_API_URL && import.meta.env.VITE_API_URL.trim()) {
+    return import.meta.env.VITE_API_URL.trim().replace(/\/+$/, '');
+  }
   
   // Trên thiết bị thật (Zalo Mini App), luôn dùng Vercel backend
   return VERCEL_BACKEND_URL;
 };
 
-// Auth header helper: inject x-user-id from localStorage session
+// Auth header helper: inject x-user-id and Authorization header from localStorage session
 const getAuthHeaders = () => {
+  const headers = {};
   try {
     const userJson = window.localStorage.getItem('zmp_logged_in_user');
     if (userJson) {
       const user = JSON.parse(userJson);
       if (user && user.id) {
-        return { 'x-user-id': user.id };
+        headers['x-user-id'] = user.id;
       }
+    }
+    const token = window.localStorage.getItem('zmp_auth_token');
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
     }
   } catch {
     // ignore
   }
-  return {};
+  return headers;
 };
 
 // Safe Fetch Wrapper: Handles network & HTTP error formatting
@@ -68,6 +73,13 @@ const safeFetch = async (url, options = {}) => {
   }
 
   if (!res.ok) {
+    if (res.status === 401) {
+      // Clear session from localStorage
+      window.localStorage.removeItem('zmp_logged_in_user');
+      window.localStorage.removeItem('zmp_auth_token');
+      // Dispatch event to notify App.jsx to set currentUser to null
+      window.dispatchEvent(new Event('zmp_unauthorized'));
+    }
     let errMsg = `Server status ${res.status}`;
     try {
       const errData = await res.json();
@@ -134,6 +146,22 @@ export const Storage = {
     const res = await safeFetch(`${getApiBase()}/api/auth/verify-email-otp`, {
       method: 'POST',
       body: JSON.stringify({ email, otp })
+    });
+    return res.json();
+  },
+
+  sendOtp: async (email, zalo_id) => {
+    const res = await safeFetch(`${getApiBase()}/api/auth/send-otp`, {
+      method: 'POST',
+      body: JSON.stringify({ email, zalo_id })
+    });
+    return res.json();
+  },
+
+  verifyOtp: async (email, zalo_id, otp, profile = {}) => {
+    const res = await safeFetch(`${getApiBase()}/api/auth/verify-otp`, {
+      method: 'POST',
+      body: JSON.stringify({ email, zalo_id, otp, ...profile })
     });
     return res.json();
   },
@@ -319,12 +347,17 @@ export const Storage = {
       // Lưu kèm timestamp đăng nhập để kiểm tra hết hạn session
       const sessionData = { ...user, _loginAt: user._loginAt || Date.now() };
       window.localStorage.setItem('zmp_logged_in_user', JSON.stringify(sessionData));
+      if (user.token) {
+        window.localStorage.setItem('zmp_auth_token', user.token);
+      }
     } else {
       window.localStorage.removeItem('zmp_logged_in_user');
+      window.localStorage.removeItem('zmp_auth_token');
     }
   },
   
   clearLoggedInUser: async () => {
     window.localStorage.removeItem('zmp_logged_in_user');
+    window.localStorage.removeItem('zmp_auth_token');
   }
 };

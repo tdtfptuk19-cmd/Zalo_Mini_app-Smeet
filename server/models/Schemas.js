@@ -2,8 +2,10 @@ import mongoose from 'mongoose';
 
 const UserSchema = new mongoose.Schema({
   id: { type: String, required: true, unique: true, index: true },
+  zalo_id: { type: String, index: true },
   name: { type: String, required: true },
   email: { type: String },
+  is_email_verified: { type: Boolean, default: false },
   phone: { type: String },
   // role: Primary role (backward compat), roles: Mảng các role (hỗ trợ đa vai trò)
   role: { type: String, default: 'member' },
@@ -90,3 +92,15 @@ export const Note = mongoose.model('Note', NoteSchema);
 export const Poll = mongoose.model('Poll', PollSchema);
 export const Report = mongoose.model('Report', ReportSchema);
 export const NotifConfig = mongoose.model('NotifConfig', NotifConfigSchema);
+
+const OtpSchema = new mongoose.Schema({
+  email: { type: String, required: true },
+  zalo_id: { type: String, required: true },
+  code: { type: String, required: true },
+  expiresAt: { type: Date, required: true }
+});
+
+// TTL index to automatically delete expired OTPs
+OtpSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 });
+
+export const Otp = mongoose.model('Otp', OtpSchema);

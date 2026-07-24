@@ -60,8 +60,10 @@ export const Dashboard = React.memo(({ currentUser, onEnterMeeting, onOpenCreate
   };
 
   const loadDashboard = useCallback(async (isBackground = false) => {
-    if (!isBackground) setLoading(true);
-    setError('');
+    if (!isBackground) {
+      setLoading(true);
+      setError('');
+    }
     try {
       const data = await Storage.getDashboard();
       setDashData(data);
@@ -104,6 +106,15 @@ export const Dashboard = React.memo(({ currentUser, onEnterMeeting, onOpenCreate
 
   const isAdmin = hasRole(currentUser, 'admin');
   const isAdminOrDelegated = isAdmin || hasRole(currentUser, 'delegated');
+
+  if (!dashData) {
+    return (
+      <div className="dashboard-loading">
+        <div className="spinner" />
+        <p>Đang chuẩn bị dữ liệu tổng quan...</p>
+      </div>
+    );
+  }
 
   return (
     <div className="dashboard-view">
@@ -173,7 +184,7 @@ export const Dashboard = React.memo(({ currentUser, onEnterMeeting, onOpenCreate
           <Calendar size={18} />
           <h3>Lịch họp hôm nay</h3>
         </div>
-        {dashData?.todayMeetings?.length === 0 ? (
+        {(dashData?.todayMeetings || []).length === 0 ? (
           <div className="dashboard-empty-card">
             <span>☕</span>
             <p>Không có cuộc họp nào hôm nay.</p>
@@ -231,7 +242,7 @@ export const Dashboard = React.memo(({ currentUser, onEnterMeeting, onOpenCreate
       </div>
 
       {/* Sắp diễn ra */}
-      {dashData?.upcomingMeetings?.length > 0 && (
+      {(dashData?.upcomingMeetings || []).length > 0 && (
         <div className="dashboard-section">
           <div className="dashboard-section-header">
             <TrendingUp size={18} />
@@ -261,7 +272,7 @@ export const Dashboard = React.memo(({ currentUser, onEnterMeeting, onOpenCreate
       )}
 
       {/* Meetings hoàn thành chưa có báo cáo – chỉ admin/delegated thấy */}
-      {isAdminOrDelegated && dashData?.meetingsWithoutReport?.length > 0 && (
+      {isAdminOrDelegated && (dashData?.meetingsWithoutReport || []).length > 0 && (
         <div className="dashboard-section">
           <div className="dashboard-section-header">
             <AlertCircle size={18} style={{ color: 'var(--warning, #f59e0b)' }} />

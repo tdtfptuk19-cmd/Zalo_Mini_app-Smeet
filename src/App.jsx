@@ -18,6 +18,7 @@ import { MeetingFormModal } from './components/MeetingFormModal';
 import { QuickMeetingModal } from './components/QuickMeetingModal';
 import { MeetingRoom } from './components/MeetingRoom';
 import { SettingsDrawer } from './components/SettingsDrawer';
+import { EmailVerificationModal } from './components/EmailVerificationModal';
 
 import logo from './assets/logo.png';
 
@@ -109,6 +110,16 @@ function App() {
     root.classList.add(`font-${appFontSize}`);
   }, [appFontSize]);
 
+  // Clear session and redirect to login on 401 Unauthorized
+  useEffect(() => {
+    const handleUnauthorized = () => {
+      auth.handleLogout();
+      triggerNotification('[Hệ thống] Phiên làm việc đã hết hạn hoặc tài khoản không tồn tại. Vui lòng đăng nhập lại.');
+    };
+    window.addEventListener('zmp_unauthorized', handleUnauthorized);
+    return () => window.removeEventListener('zmp_unauthorized', handleUnauthorized);
+  }, [auth, triggerNotification]);
+
   // 3. Initial load sync (including Zalo SDK login checks and deep-linking)
   // Chạy ngay – không đợi splash – để data sẵn sàng khi splash kết thúc
   useEffect(() => {
@@ -116,6 +127,12 @@ function App() {
       const ZALO_DEFAULT_AVATAR = 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgMTAwIj48Y2lyY2xlIGN4PSI1MCIgY3k9IjUwIiByPSI1MCIgZmlsbD0iI0U2RjBGRiIvPjxjaXJjbGUgY3g9IjUwIiBjeT0iMzgiIHI9IjE4IiBmaWxsPSIjMDA2OEZGIi8+PHBhdGggZD0iTTUwIDYwYy0xOCAwLTMwIDgtMzAgMTh2NGg2MHYtNGMwLTEwLTEyLTE4LTMwLTE4eiIgZmlsbD0iIzAwNjhGRiIvPjwvc3ZnPg==';
 
       let activeUser = await Storage.getLoggedInUser();
+      if (activeUser && activeUser.is_email_verified === false) {
+        // Clear unverified session immediately to prevent flashing navigation bar
+        activeUser = null;
+        await Storage.clearLoggedInUser();
+      }
+
       if (activeUser?.avatar?.includes('unsplash.com')) {
         activeUser = { ...activeUser, avatar: ZALO_DEFAULT_AVATAR };
         await Storage.setLoggedInUser(activeUser);
@@ -132,9 +149,12 @@ function App() {
             name: zaloUser.name,
             avatar: zaloUser.avatar || ZALO_DEFAULT_AVATAR
           });
-          if (apiRes && apiRes.needEmailLink) {
+          if (apiRes && (apiRes.needEmail || apiRes.needEmailLink)) {
+            // Lưu profile tạm thời để hiển thị form nhập email trên màn hình Auth (không cho phép đăng nhập tự động)
             auth.setZaloTempProfile(apiRes.zaloUser);
-            activeUser = null; // Do not log in, show linking form
+            auth.setIsRegistering(true);
+            activeUser = null;
+            await Storage.clearLoggedInUser();
           } else if (apiRes && apiRes.user) {
             activeUser = apiRes.user;
             await Storage.setLoggedInUser(activeUser);
@@ -170,6 +190,26 @@ function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  const handleOpenCreateMeeting = () => {
+    if (auth.currentUser && !auth.currentUser.is_email_verified) {
+      auth.openVerificationModal(() => {
+        meetings.setIsMeetingModalOpen(true);
+      });
+      return;
+    }
+    meetings.setIsMeetingModalOpen(true);
+  };
+
+  const handleOpenQuickMeeting = () => {
+    if (auth.currentUser && !auth.currentUser.is_email_verified) {
+      auth.openVerificationModal(() => {
+        meetings.setIsQuickMeetingModalOpen(true);
+      });
+      return;
+    }
+    meetings.setIsQuickMeetingModalOpen(true);
+  };
+
   // Intercept tab changes to save note if unsaved
   const switchTab = async (newTab) => {
     if (activeTab === 'meeting' && meetingRoom.hasUnsavedChanges) {
@@ -177,6 +217,12 @@ function App() {
     }
 
     if (newTab === 'meeting') {
+      if (auth.currentUser && !auth.currentUser.is_email_verified) {
+        auth.openVerificationModal(() => {
+          switchTab(newTab);
+        });
+        return;
+      }
       if (!activeMeeting && meetings.meetings.length > 0) {
         // Auto-select first meeting if none is selected
         const first = meetings.meetings[0];
@@ -194,6 +240,17 @@ function App() {
   };
 
   const onEnterMeetingRoomFromList = async (meeting) => {
+    if (auth.currentUser && !auth.currentUser.is_email_verified) {
+      auth.openVerificationModal(async () => {
+        if (activeTab === 'meeting' && meetingRoom.hasUnsavedChanges) {
+          await meetingRoom.saveNoteNow();
+        }
+        setActiveMeeting(meeting);
+        setActiveTab('meeting');
+      });
+      return;
+    }
+
     if (activeTab === 'meeting' && meetingRoom.hasUnsavedChanges) {
       await meetingRoom.saveNoteNow();
     }
@@ -215,6 +272,15 @@ function App() {
 
       {/* Toast Notification Simulation */}
       <NotificationSim message={simulatedNotif} />
+
+      {/* Email Verification Modal */}
+      <EmailVerificationModal
+        isOpen={auth.isVerificationModalOpen}
+        onClose={() => auth.setIsVerificationModalOpen(false)}
+        currentUser={auth.currentUser ? auth.currentUser : { ...auth.zaloTempProfile, email: auth.loginEmail, roles: auth.registerRole }}
+        setCurrentUser={auth.setCurrentUser}
+        onSuccess={auth.verificationCallback}
+      />
 
       {auth.currentUser === null ? (
         <Auth
@@ -273,7 +339,7 @@ function App() {
                 <Dashboard
                   currentUser={auth.currentUser}
                   onEnterMeeting={onEnterMeetingRoomFromList}
-                  onOpenCreateMeeting={() => meetings.setIsMeetingModalOpen(true)}
+                  onOpenCreateMeeting={handleOpenCreateMeeting}
                 />
               </div>
             )}
@@ -296,8 +362,8 @@ function App() {
                   currentUser={auth.currentUser}
                   openEditMeetingForm={meetings.openEditMeetingForm || meetings.setEditingMeeting}
                   enterMeetingWorkspace={onEnterMeetingRoomFromList}
-                  openNewMeetingForm={() => meetings.setIsMeetingModalOpen(true)}
-                  openQuickMeetingForm={() => meetings.setIsQuickMeetingModalOpen(true)}
+                  openNewMeetingForm={handleOpenCreateMeeting}
+                  openQuickMeetingForm={handleOpenQuickMeeting}
                   onDeleteMeeting={meetings.handleDeleteMeeting}
                   onCancelMeeting={meetings.handleCancelMeeting}
                 />
@@ -518,6 +584,8 @@ function App() {
             }}
           />
 
+
+
           {/* Sidebar Drawer Settings Control */}
           <SettingsDrawer
             isOpen={auth.isAvatarModalOpen}
@@ -526,6 +594,7 @@ function App() {
             users={auth.users}
             handleLogout={auth.handleLogout}
             handleSavePersonalPhone={auth.handleSavePersonalPhone}
+            handleSavePersonalName={auth.handleSavePersonalName}
             handleAddMember={auth.handleAddMember}
             handleDeleteMember={auth.handleDeleteMember}
             handleUserChange={auth.handleUserChange}
