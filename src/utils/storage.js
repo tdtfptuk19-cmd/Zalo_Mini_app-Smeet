@@ -151,19 +151,48 @@ export const Storage = {
   },
 
   sendOtp: async (email, zalo_id) => {
-    const res = await safeFetch(`${getApiBase()}/api/auth/send-otp`, {
-      method: 'POST',
-      body: JSON.stringify({ email, zalo_id })
-    });
-    return res.json();
+    try {
+      const res = await safeFetch(`${getApiBase()}/api/auth/send-otp`, {
+        method: 'POST',
+        body: JSON.stringify({ email, zalo_id })
+      });
+      return await res.json();
+    } catch (err) {
+      if (err.message && err.message.includes('404')) {
+        console.warn("[sendOtp] Endpoint /api/auth/send-otp returned 404, falling back to /api/auth/send-email-otp");
+        const res = await safeFetch(`${getApiBase()}/api/auth/send-email-otp`, {
+          method: 'POST',
+          body: JSON.stringify({ email })
+        });
+        return await res.json();
+      }
+      throw err;
+    }
   },
 
   verifyOtp: async (email, zalo_id, otp, profile = {}) => {
-    const res = await safeFetch(`${getApiBase()}/api/auth/verify-otp`, {
-      method: 'POST',
-      body: JSON.stringify({ email, zalo_id, otp, ...profile })
-    });
-    return res.json();
+    try {
+      const res = await safeFetch(`${getApiBase()}/api/auth/verify-otp`, {
+        method: 'POST',
+        body: JSON.stringify({ email, zalo_id, otp, ...profile })
+      });
+      return await res.json();
+    } catch (err) {
+      if (err.message && err.message.includes('404')) {
+        console.warn("[verifyOtp] Endpoint /api/auth/verify-otp returned 404, falling back to /api/auth/verify-email-otp");
+        const verifyRes = await safeFetch(`${getApiBase()}/api/auth/verify-email-otp`, {
+          method: 'POST',
+          body: JSON.stringify({ email, otp })
+        });
+        const data = await verifyRes.json();
+        if (data.success || data.valid) {
+          const linkRes = await Storage.linkZaloEmail({ id: zalo_id, email, ...profile });
+          return linkRes;
+        }
+        return data;
+      }
+      throw err;
+    }
   },
 
   lookupUsersByEmail: async (email) => {
