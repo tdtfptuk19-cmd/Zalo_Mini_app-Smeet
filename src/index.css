@@ -22,12 +22,29 @@
   --shadow-md: 0 4px 20px rgba(0, 0, 0, 0.08);
   --shadow-lg: 0 8px 30px rgba(0, 0, 0, 0.12);
   --transition-smooth: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+
+  /* Mobile Native Safe Area Inset Variables */
+  --sat: env(safe-area-inset-top, 0px);
+  --sab: env(safe-area-inset-bottom, 0px);
+  --sal: env(safe-area-inset-left, 0px);
+  --sar: env(safe-area-inset-right, 0px);
 }
 
 * {
   box-sizing: border-box;
   margin: 0;
   padding: 0;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Native Mobile Touch Gesture Scale Feedback */
+.btn:active, 
+.bottom-nav-item:active, 
+.header-profile-trigger:active, 
+.card-clickable:active,
+.drawer-close-btn:active {
+  transform: scale(0.97);
+  transition: transform 0.1s ease;
 }
 
 html, body {

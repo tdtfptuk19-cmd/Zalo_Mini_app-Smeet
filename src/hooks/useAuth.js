@@ -102,82 +102,63 @@ export function useAuth(triggerNotification) {
     return null;
   };
 
-  const handleZaloLogin = async () => {
-    setLoginError('');
-    try {
-      await authorize({ scopes: ['scope.userInfo'] });
-      const res = await getUserInfo({});
-      if (res?.userInfo) {
-        const zaloUser = res.userInfo;
-        const ZALO_DEFAULT_AVATAR = 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgMTAwIj48Y2lyY2xlIGN4PSI1MCIgY3k9IjUwIiByPSI1MCIgZmlsbD0iI0U2RjBGRiIvPjxjaXJjbGUgY3g9IjUwIiBjeT0iMzgiIHI9IjE4IiBmaWxsPSIjMDA2OEZGIi8+PHBhdGggZD0iTTUwIDYwYy0xOCAwLTMwIDgtMzAgMTh2NGg2MHYtNGMwLTEwLTEyLTE4LTMwLTE4eiIgZmlsbD0iIzAwNjhGRiIvPjwvc3ZnPg==';
-        const apiRes = await Storage.authenticateZalo({
-          id: zaloUser.id,
-          name: zaloUser.name,
-          avatar: zaloUser.avatar || ZALO_DEFAULT_AVATAR
-        });
 
-        if (apiRes.needEmail || apiRes.needEmailLink) {
-          // Đăng nhập tạm thời với tài khoản chưa verify email
-          const tempUser = {
-            id: apiRes.zaloUser.id,
-            name: apiRes.zaloUser.name || 'Người dùng Zalo',
-            avatar: apiRes.zaloUser.avatar || ZALO_DEFAULT_AVATAR,
-            is_email_verified: false
-          };
-          setCurrentUser(tempUser);
-          await Storage.setLoggedInUser(tempUser);
-          resetLoginStates();
-        } else if (apiRes.user) {
-          // Zalo đã liên kết và verify email -> Đăng nhập thành công
-          setCurrentUser(apiRes.user);
-          await Storage.setLoggedInUser(apiRes.user);
-          resetLoginStates();
-          setTimeout(() => requestNotificationPermission(true), 500);
-        }
-        return true;
-      }
-    } catch (err) {
-      console.warn("Zalo SDK auth failed, using Mock Admin for simulation/browser testing:", err);
-      // Giả lập cho trình duyệt: Đăng nhập thẳng bằng tài khoản Nguyễn Văn A chưa verify để có thể test popup
-      try {
-        const mockUser = {
-          id: 'u1',
-          name: 'Nguyễn Văn A (Host)',
-          avatar: 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgMTAwIj48Y2lyY2xlIGN4PSI1MCIgY3k9IjUwIiByPSI1MCIgZmlsbD0iI0U2RjBGRiIvPjxjaXJjbGUgY3g9IjUwIiBjeT0iMzgiIHI9IjE4IiBmaWxsPSIjMDA2OEZGIi8+PHBhdGggZD0iTTUwIDYwYy0xOCAwLTMwIDgtMzAgMTh2NGg2MHYtNGMwLTEwLTEyLTE4LTMwLTE4eiIgZmlsbD0iIzAwNjhGRiIvPjwvc3ZnPg==',
-          email: 'nguyenvana@gmail.com',
-          phone: '0912345678',
-          role: 'admin',
-          roles: ['admin'],
-          is_email_verified: false // Cho phép test luồng OTP dễ dàng trên browser
-        };
-        setCurrentUser(mockUser);
-        await Storage.setLoggedInUser(mockUser);
-        resetLoginStates();
-        return true;
-      } catch (mockErr) {
-        setLoginError('Không thể giả lập đăng nhập: ' + mockErr.message);
-      }
-      return false;
-    }
-  };
 
-  const handleLinkEmailAndLogin = async (email, roles) => {
+  const handleSendEmailOtp = async (email) => {
     setLoginError('');
     if (!email || !email.trim()) {
       setLoginError('Vui lòng nhập địa chỉ email của bạn.');
-      return false;
+      return { success: false, error: 'Vui lòng nhập địa chỉ email của bạn.' };
     }
+    const cleanEmail = email.trim().toLowerCase();
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(email.trim().toLowerCase())) {
+    if (!emailRegex.test(cleanEmail)) {
       setLoginError('Định dạng email không hợp lệ (ví dụ: user@example.com).');
-      return false;
+      return { success: false, error: 'Định dạng email không hợp lệ.' };
     }
 
-    // Mở popup xác thực OTP trực tiếp từ Auth page
-    openVerificationModal(() => {
-      resetLoginStates();
-    });
-    return true;
+    try {
+      const res = await Storage.sendEmailOtp(cleanEmail);
+      if (res.success) {
+        setLoginEmail(cleanEmail);
+        return res;
+      } else {
+        setLoginError(res.error || 'Không thể gửi mã OTP đến email này.');
+        return res;
+      }
+    } catch (err) {
+      setLoginError('Lỗi kết nối máy chủ khi gửi mã OTP: ' + err.message);
+      return { success: false, error: err.message };
+    }
+  };
+
+  const handleVerifyEmailOtp = async (email, otp, name = '', roles = ['member']) => {
+    setLoginError('');
+    if (!email || !otp) {
+      setLoginError('Vui lòng nhập đầy đủ Email và mã OTP 6 số.');
+      return false;
+    }
+    const cleanEmail = email.trim().toLowerCase();
+
+    try {
+      const res = await Storage.verifyEmailOtp(cleanEmail, otp.trim(), name, roles);
+      if (res.success && res.user) {
+        setCurrentUser(res.user);
+        await Storage.setLoggedInUser(res.user);
+        resetLoginStates();
+        if (triggerNotification) {
+          triggerNotification(`[Email Auth] Xin chào ${res.user.name || res.user.email}! Đăng nhập thành công.`);
+        }
+        setTimeout(() => requestNotificationPermission(true), 500);
+        return true;
+      } else {
+        setLoginError(res.error || 'Mã OTP không đúng hoặc đã hết hạn.');
+        return false;
+      }
+    } catch (err) {
+      setLoginError('Lỗi hệ thống khi xác thực mã OTP: ' + err.message);
+      return false;
+    }
   };
 
   const resetLoginStates = () => {
@@ -324,8 +305,8 @@ export function useAuth(triggerNotification) {
     setIsAvatarModalOpen,
     initUsers,
     refreshUsers,
-    handleZaloLogin,
-    handleLinkEmailAndLogin,
+    handleSendEmailOtp,
+    handleVerifyEmailOtp,
     handleLogout,
     handleSavePersonalPhone,
     handleSavePersonalName,

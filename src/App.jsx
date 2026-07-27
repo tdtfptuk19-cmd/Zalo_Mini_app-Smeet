@@ -9,6 +9,7 @@ import { useMeetingRoom } from './hooks/useMeetingRoom';
 
 import { SplashScreen } from './components/SplashScreen';
 import { requestNotificationPermission } from './utils/notificationHelper';
+import { triggerHaptic } from './utils/hapticHelper';
 import { NotificationSim } from './components/NotificationSim';
 import { Auth } from './components/Auth';
 import { Dashboard } from './components/Dashboard';
@@ -19,6 +20,7 @@ import { QuickMeetingModal } from './components/QuickMeetingModal';
 import { MeetingRoom } from './components/MeetingRoom';
 import { SettingsDrawer } from './components/SettingsDrawer';
 import { EmailVerificationModal } from './components/EmailVerificationModal';
+import { PendingInviteModal } from './components/PendingInviteModal';
 
 import logo from './assets/logo.png';
 
@@ -48,6 +50,9 @@ function App() {
   });
   const [appFontSize, setAppFontSize] = useState('medium'); // small, medium, large
   const [appLanguage, setAppLanguage] = useState('vi'); // vi, en
+
+  // Pending invites state
+  const [pendingInvites, setPendingInvites] = useState([]);
 
   // 1. Notification trigger state
   const [simulatedNotif, setSimulatedNotif] = useState(null);
@@ -127,50 +132,26 @@ function App() {
       const ZALO_DEFAULT_AVATAR = 'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMDAgMTAwIj48Y2lyY2xlIGN4PSI1MCIgY3k9IjUwIiByPSI1MCIgZmlsbD0iI0U2RjBGRiIvPjxjaXJjbGUgY3g9IjUwIiBjeT0iMzgiIHI9IjE4IiBmaWxsPSIjMDA2OEZGIi8+PHBhdGggZD0iTTUwIDYwYy0xOCAwLTMwIDgtMzAgMTh2NGg2MHYtNGMwLTEwLTEyLTE4LTMwLTE4eiIgZmlsbD0iIzAwNjhGRiIvPjwvc3ZnPg==';
 
       let activeUser = await Storage.getLoggedInUser();
-      if (activeUser && activeUser.is_email_verified === false) {
-        // Clear unverified session immediately to prevent flashing navigation bar
-        activeUser = null;
-        await Storage.clearLoggedInUser();
-      }
 
       if (activeUser?.avatar?.includes('unsplash.com')) {
         activeUser = { ...activeUser, avatar: ZALO_DEFAULT_AVATAR };
         await Storage.setLoggedInUser(activeUser);
       }
-
-      // Auto Zalo login on Mini App runtime
-      try {
-        await authorize({ scopes: ['scope.userInfo'] });
-        const res = await getUserInfo({});
-        if (res?.userInfo) {
-          const zaloUser = res.userInfo;
-          const apiRes = await Storage.authenticateZalo({
-            id: zaloUser.id,
-            name: zaloUser.name,
-            avatar: zaloUser.avatar || ZALO_DEFAULT_AVATAR
-          });
-          if (apiRes && (apiRes.needEmail || apiRes.needEmailLink)) {
-            // Lưu profile tạm thời để hiển thị form nhập email trên màn hình Auth (không cho phép đăng nhập tự động)
-            auth.setZaloTempProfile(apiRes.zaloUser);
-            auth.setIsRegistering(true);
-            activeUser = null;
-            await Storage.clearLoggedInUser();
-          } else if (apiRes && apiRes.user) {
-            activeUser = apiRes.user;
-            await Storage.setLoggedInUser(activeUser);
-          } else {
-            activeUser = null;
-          }
-        }
-      } catch (err) {
-        console.warn('Failed to fetch Zalo user info, using cached session if available:', err);
-      }
-
       if (activeUser) {
         auth.setCurrentUser(activeUser);
         await auth.initUsers();
         const loadedMeetings = await meetings.refreshMeetings();
         await refreshReports();
+
+        // Check for pending group invites
+        try {
+          const invites = await Storage.getPendingInvites();
+          if (Array.isArray(invites) && invites.length > 0) {
+            setPendingInvites(invites);
+          }
+        } catch (err) {
+          console.warn('Check pending invites error:', err);
+        }
 
         setTimeout(() => requestNotificationPermission(true), 1200);
 
@@ -190,39 +171,38 @@ function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const handleOpenCreateMeeting = () => {
-    if (auth.currentUser && !auth.currentUser.is_email_verified) {
-      auth.openVerificationModal(() => {
-        meetings.setIsMeetingModalOpen(true);
-      });
-      return;
+  const handleRespondInvite = async (inviteId, action) => {
+    try {
+      const res = await Storage.respondInvite({ inviteId, action });
+      if (res && res.success) {
+        if (res.action === 'accepted' && res.user) {
+          auth.setCurrentUser(res.user);
+          await Storage.setLoggedInUser(res.user);
+        }
+        triggerNotification(`[Hệ thống] ${res.message}`);
+        setPendingInvites(prev => prev.filter(inv => inv.id !== inviteId));
+      }
+    } catch (err) {
+      alert('Lỗi phản hồi lời mời: ' + err.message);
     }
+  };
+
+  const handleOpenCreateMeeting = () => {
     meetings.setIsMeetingModalOpen(true);
   };
 
   const handleOpenQuickMeeting = () => {
-    if (auth.currentUser && !auth.currentUser.is_email_verified) {
-      auth.openVerificationModal(() => {
-        meetings.setIsQuickMeetingModalOpen(true);
-      });
-      return;
-    }
     meetings.setIsQuickMeetingModalOpen(true);
   };
 
   // Intercept tab changes to save note if unsaved
   const switchTab = async (newTab) => {
+    triggerHaptic('light');
     if (activeTab === 'meeting' && meetingRoom.hasUnsavedChanges) {
       await meetingRoom.saveNoteNow();
     }
 
     if (newTab === 'meeting') {
-      if (auth.currentUser && !auth.currentUser.is_email_verified) {
-        auth.openVerificationModal(() => {
-          switchTab(newTab);
-        });
-        return;
-      }
       if (!activeMeeting && meetings.meetings.length > 0) {
         // Auto-select first meeting if none is selected
         const first = meetings.meetings[0];
@@ -240,17 +220,6 @@ function App() {
   };
 
   const onEnterMeetingRoomFromList = async (meeting) => {
-    if (auth.currentUser && !auth.currentUser.is_email_verified) {
-      auth.openVerificationModal(async () => {
-        if (activeTab === 'meeting' && meetingRoom.hasUnsavedChanges) {
-          await meetingRoom.saveNoteNow();
-        }
-        setActiveMeeting(meeting);
-        setActiveTab('meeting');
-      });
-      return;
-    }
-
     if (activeTab === 'meeting' && meetingRoom.hasUnsavedChanges) {
       await meetingRoom.saveNoteNow();
     }
@@ -295,8 +264,8 @@ function App() {
           setRegisterRole={auth.setRegisterRole}
           loginError={auth.loginError}
           setLoginError={auth.setLoginError}
-          handleZaloLogin={auth.handleZaloLogin}
-          handleLinkEmailAndLogin={auth.handleLinkEmailAndLogin}
+          handleSendEmailOtp={auth.handleSendEmailOtp}
+          handleVerifyEmailOtp={auth.handleVerifyEmailOtp}
           resetLoginStates={auth.resetLoginStates}
         />
       ) : (
@@ -607,6 +576,14 @@ function App() {
             setAppLanguage={setAppLanguage}
             triggerNotification={triggerNotification}
           />
+
+          {/* Pending Group Invite Confirmation Modal */}
+          {pendingInvites.length > 0 && (
+            <PendingInviteModal
+              invite={pendingInvites[0]}
+              onRespond={handleRespondInvite}
+            />
+          )}
         </>
       )}
     </div>

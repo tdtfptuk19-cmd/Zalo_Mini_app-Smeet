@@ -31,10 +31,6 @@ export const SettingsDrawer = React.memo(({
   // Local state for deleting member custom confirmation modal
   const [confirmDeleteMember, setConfirmDeleteMember] = useState(null);
 
-  // Local state for phone editing
-  const [isEditingPhone, setIsEditingPhone] = useState(false);
-  const [personalPhone, setPersonalPhone] = useState(currentUser?.phone || '');
-
   // Local state for name editing
   const [isEditingName, setIsEditingName] = useState(false);
   const [personalName, setPersonalName] = useState(currentUser?.name || '');
@@ -42,22 +38,35 @@ export const SettingsDrawer = React.memo(({
   // Sync local states if currentUser changes
   useEffect(() => {
     if (currentUser) {
-      setPersonalPhone(currentUser.phone || '');
       setPersonalName(currentUser.name || '');
     }
   }, [currentUser]);
 
-  // Local states for Admin's add member form
-  const [newMemberName, setNewMemberName] = useState('');
-  const [newMemberPhone, setNewMemberPhone] = useState('09');
-  const [newMemberEmail, setNewMemberEmail] = useState('');
-  const [newMemberRole, setNewMemberRole] = useState('member');
+  // Local states for Admin's smart user search & invite
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState([]);
+  const [isSearching, setIsSearching] = useState(false);
+  const [selectedInviteRole, setSelectedInviteRole] = useState('member');
+  const [inviteStatusMsg, setInviteStatusMsg] = useState('');
 
-  // Local states for bug reporting
-  const [bugTitle, setBugTitle] = useState('');
-  const [bugContent, setBugContent] = useState('');
-  const [bugCategory, setBugCategory] = useState('ui');
-  const [isSubmittingBug, setIsSubmittingBug] = useState(false);
+  // Debounced search against DB
+  useEffect(() => {
+    if (!searchQuery.trim()) {
+      setSearchResults([]);
+      return;
+    }
+    const timer = setTimeout(async () => {
+      setIsSearching(true);
+      try {
+        const results = await Storage.searchUsers(searchQuery.trim());
+        setSearchResults(Array.isArray(results) ? results : []);
+      } catch (err) {
+        console.error('Search users error:', err);
+      } finally {
+        setIsSearching(false);
+      }
+    }, 300);
+  }, [searchQuery]);
 
   const t = (vi, en) => {
     return appLanguage === 'vi' ? vi : en;
@@ -80,13 +89,6 @@ export const SettingsDrawer = React.memo(({
     }
   };
 
-  const onLocalSavePhone = async () => {
-    const success = await handleSavePersonalPhone(personalPhone);
-    if (success) {
-      setIsEditingPhone(false);
-    }
-  };
-
   const onLocalSaveName = async () => {
     const success = await handleSavePersonalName(personalName);
     if (success) {
@@ -94,47 +96,25 @@ export const SettingsDrawer = React.memo(({
     }
   };
 
-  const onLocalAddMemberSubmit = async (e) => {
-    e.preventDefault();
-    const success = await handleAddMember(newMemberName, newMemberPhone, newMemberRole, newMemberEmail);
-    if (success) {
-      setNewMemberName('');
-      setNewMemberPhone('09');
-      setNewMemberEmail('');
-      triggerNotification(`[Hệ thống] Đã thêm thành viên "${newMemberName}" thành công.`);
-    }
-  };
-
-  const onLocalBugSubmit = async (e) => {
-    e.preventDefault();
-    if (!bugTitle.trim() || !bugContent.trim()) {
-      triggerNotification('[Lỗi] Vui lòng điền đầy đủ thông tin báo cáo sự cố!');
-      return;
-    }
-
-    setIsSubmittingBug(true);
-
+  const onLocalSendInvite = async (targetEmail) => {
+    if (!targetEmail || !targetEmail.trim()) return;
+    setInviteStatusMsg('Đang gửi lời mời...');
     try {
-      const reportPayload = {
-        email: currentUser?.email || '',
-        name: currentUser?.name || 'Thành viên',
-        category: bugCategory,
-        description: `Tiêu đề: ${bugTitle}\nChi tiết sự cố:\n${bugContent}`
-      };
-
-      const res = await Storage.sendBugReport(reportPayload);
+      const res = await Storage.sendMemberInvite({
+        targetEmail: targetEmail.trim().toLowerCase(),
+        role: selectedInviteRole
+      });
       if (res && res.success) {
-        triggerNotification(`[Hệ thống] Đã gửi báo cáo sự cố thành công tới smeetreport@gmail.com!`);
-        setBugTitle('');
-        setBugContent('');
-        setBugCategory('ui');
+        setInviteStatusMsg(res.message);
+        triggerNotification(`[Hệ thống] ${res.message}`);
+        setSearchQuery('');
+        setSearchResults([]);
+        setTimeout(() => setInviteStatusMsg(''), 4000);
       } else {
-        triggerNotification(`[Lỗi] Không thể gửi báo cáo sự cố qua hệ thống: ${res?.error || 'Lỗi kết nối server'}`);
+        setInviteStatusMsg(res.error || 'Không thể gửi lời mời.');
       }
     } catch (err) {
-      triggerNotification(`[Lỗi] Gặp sự cố kết nối: ${err.message}`);
-    } finally {
-      setIsSubmittingBug(false);
+      setInviteStatusMsg('Lỗi gửi lời mời: ' + err.message);
     }
   };
 
@@ -212,31 +192,9 @@ export const SettingsDrawer = React.memo(({
                   </div>
                 )}
                 
-                {isEditingPhone ? (
-                  <div className="profile-phone-edit-row">
-                    <input 
-                      type="tel"
-                      value={personalPhone}
-                      onChange={(e) => setPersonalPhone(e.target.value.replace(/\D/g, ''))}
-                      className="input-text phone-edit-input"
-                      placeholder="SĐT mới..."
-                      autoFocus
-                    />
-                    <button type="button" onClick={onLocalSavePhone} className="btn btn-primary btn-save-phone-mini">
-                      Lưu
-                    </button>
-                    <button type="button" onClick={() => { setIsEditingPhone(false); setPersonalPhone(currentUser.phone); }} className="btn btn-secondary btn-cancel-phone-mini">
-                      Hủy
-                    </button>
+                  <div className="profile-phone-display-row" style={{ marginBottom: '6px' }}>
+                    <span className="profile-phone-text" style={{ fontSize: '0.85rem', color: 'var(--text-muted, #64748b)' }}>Email: {currentUser.email || 'Chưa cập nhật'}</span>
                   </div>
-                ) : (
-                  <div className="profile-phone-display-row">
-                    <span className="profile-phone-text">SĐT: {currentUser.phone}</span>
-                    <button type="button" onClick={() => { setPersonalPhone(currentUser.phone); setIsEditingPhone(true); }} className="btn-edit-phone-link">
-                      Sửa
-                    </button>
-                  </div>
-                )}
                 
                 {/* Hiển thị tất cả roles của user (hỗ trợ đa vai trò) */}
                 {(() => {
@@ -322,61 +280,6 @@ export const SettingsDrawer = React.memo(({
                 </button>
               </div>
             </div>
-
-            {/* Bug reporting sub-form */}
-            <div className="settings-section bug-reporting-section">
-              <span className="section-subtitle">{t('Báo Cáo Sự Cố Ứng Dụng', 'App Bug Reporting')}</span>
-              <form onSubmit={onLocalBugSubmit} className="bug-report-form">
-                <div className="form-group">
-                  <label htmlFor="bug-title">{t('Tiêu đề sự cố', 'Issue Title')}</label>
-                  <input 
-                    id="bug-title"
-                    type="text" 
-                    value={bugTitle} 
-                    onChange={(e) => setBugTitle(e.target.value)} 
-                    className="input-text input-mini"
-                    placeholder="Lỗi hiển thị lịch, không gửi được ghi chú..."
-                    required
-                  />
-                </div>
-                <div className="form-group-row-mini">
-                  <div className="form-group" style={{ flex: 1 }}>
-                    <label htmlFor="bug-cat">{t('Danh mục', 'Category')}</label>
-                    <select 
-                      id="bug-cat"
-                      value={bugCategory} 
-                      onChange={(e) => setBugCategory(e.target.value)}
-                      className="select-input select-mini"
-                    >
-                      <option value="ui">Lỗi giao diện (UI)</option>
-                      <option value="connection">Kết nối mạng & OTP</option>
-                      <option value="ai">Trợ lý AI biên bản</option>
-                      <option value="notification">Cổng thông báo Zalo</option>
-                      <option value="other">Khác</option>
-                    </select>
-                  </div>
-                </div>
-                <div className="form-group">
-                  <label htmlFor="bug-desc">{t('Mô tả chi tiết', 'Detailed Description')}</label>
-                  <textarea 
-                    id="bug-desc"
-                    value={bugContent} 
-                    onChange={(e) => setBugContent(e.target.value)}
-                    className="textarea-input textarea-mini"
-                    placeholder="Mô tả các bước xảy ra lỗi để gửi đến kỹ thuật viên..."
-                    required
-                  />
-                </div>
-                <button 
-                  type="submit" 
-                  disabled={isSubmittingBug} 
-                  className="btn btn-danger btn-submit-bug"
-                >
-                  <Send size={14} />
-                  <span>{isSubmittingBug ? t('Đang gửi...', 'Sending...') : t('Gửi báo cáo sự cố (email)', 'Submit Bug Report')}</span>
-                </button>
-              </form>
-            </div>
           </div>
 
           {/* ========================================================================= */}
@@ -388,64 +291,90 @@ export const SettingsDrawer = React.memo(({
               
               {/* Member Management sub-form */}
               <div className="settings-section member-management-section">
-                <span className="section-subtitle">Quản Lý Thành Viên Nhóm</span>
+                <span className="section-subtitle">Mời & Quản Lý Thành Viên Nhóm</span>
                 
-                <form onSubmit={onLocalAddMemberSubmit} className="admin-add-member-form">
+                {inviteStatusMsg && (
+                  <div className="alert-box" style={{ padding: '8px 12px', fontSize: '0.82rem', marginBottom: '12px', background: '#f0f7ff', borderColor: '#bae6fd', color: '#0369a1' }}>
+                    <span>{inviteStatusMsg}</span>
+                  </div>
+                )}
+
+                <div className="admin-add-member-form">
                   <div className="form-group">
-                    <label htmlFor="new-mem-name">Họ tên thành viên</label>
+                    <label htmlFor="invite-role">Vai trò khi gia nhập</label>
+                    <select 
+                      id="invite-role"
+                      value={selectedInviteRole}
+                      onChange={(e) => setSelectedInviteRole(e.target.value)}
+                      className="select-input select-mini"
+                    >
+                      <option value="member">Thành viên (Member)</option>
+                      <option value="delegated">Ủy quyền tổ chức (Delegated)</option>
+                      <option value="admin">Quản lý (Admin Host)</option>
+                    </select>
+                  </div>
+
+                  <div className="form-group" style={{ position: 'relative' }}>
+                    <label htmlFor="search-user-input">Tìm kiếm Tên hoặc Email trong Database</label>
                     <input 
-                      id="new-mem-name"
+                      id="search-user-input"
                       type="text" 
-                      placeholder="Nhập tên..." 
-                      value={newMemberName}
-                      onChange={(e) => setNewMemberName(e.target.value)}
+                      placeholder="Nhập tên hoặc email (ví dụ: user@example.com)..." 
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
                       className="input-text input-mini"
-                      required
                     />
+
+                    {isSearching && (
+                      <span style={{ fontSize: '0.78rem', color: '#64748b', marginTop: '4px', display: 'block' }}>
+                        Đang tra cứu từ Database...
+                      </span>
+                    )}
+
+                    {/* Autocomplete Dropdown Search Results */}
+                    {searchResults.length > 0 && (
+                      <div className="search-user-dropdown" style={{ background: 'var(--card-bg, #ffffff)', border: '1px solid var(--border-color, #e2e8f0)', borderRadius: '8px', marginTop: '6px', maxHeight: '180px', overflowY: 'auto', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}>
+                        {searchResults.map(u => (
+                          <div key={u.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 12px', borderBottom: '1px solid #f1f5f9' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                              <img src={u.avatar} alt={u.name} style={{ width: '28px', height: '28px', borderRadius: '50%' }} />
+                              <div>
+                                <div style={{ fontSize: '0.85rem', fontWeight: 'bold' }}>{u.name}</div>
+                                <div style={{ fontSize: '0.75rem', color: '#64748b' }}>{u.email}</div>
+                              </div>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => onLocalSendInvite(u.email)}
+                              className="btn btn-primary"
+                              style={{ padding: '4px 10px', fontSize: '0.75rem', borderRadius: '6px' }}
+                            >
+                              + Mời vào nhóm
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Direct email invite trigger if not found in DB search results */}
+                    {searchQuery.includes('@') && !isSearching && searchResults.length === 0 && (
+                      <div style={{ marginTop: '8px' }}>
+                        <p style={{ fontSize: '0.8rem', color: '#64748b', margin: '4px 0' }}>
+                          Email <strong>{searchQuery}</strong> chưa có tài khoản trong hệ thống.
+                        </p>
+                        <button
+                          type="button"
+                          onClick={() => onLocalSendInvite(searchQuery)}
+                          className="btn btn-primary"
+                          style={{ width: '100%', padding: '8px 12px', fontSize: '0.85rem', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}
+                        >
+                          <Send size={14} />
+                          <span>Gửi Email thư mời tham gia SMeet</span>
+                        </button>
+                      </div>
+                    )}
                   </div>
-                  <div className="form-group">
-                    <label htmlFor="new-mem-email">Địa chỉ Email</label>
-                    <input 
-                      id="new-mem-email"
-                      type="email" 
-                      placeholder="email@example.com" 
-                      value={newMemberEmail}
-                      onChange={(e) => setNewMemberEmail(e.target.value)}
-                      className="input-text input-mini"
-                      required
-                    />
-                  </div>
-                  <div className="form-group-row-mini">
-                    <div className="form-group" style={{ flex: 2 }}>
-                      <label htmlFor="new-mem-phone">Số điện thoại</label>
-                      <input 
-                        id="new-mem-phone"
-                        type="tel" 
-                        placeholder="Số điện thoại..." 
-                        value={newMemberPhone}
-                        onChange={(e) => setNewMemberPhone(e.target.value)}
-                        className="input-text input-mini"
-                        required
-                      />
-                    </div>
-                    <div className="form-group" style={{ flex: 1.5 }}>
-                      <label htmlFor="new-mem-role">Vai trò</label>
-                      <select 
-                        id="new-mem-role"
-                        value={newMemberRole}
-                        onChange={(e) => setNewMemberRole(e.target.value)}
-                        className="select-input select-mini"
-                      >
-                        <option value="member">Thành viên</option>
-                        <option value="delegated">Ủy quyền</option>
-                      </select>
-                    </div>
-                  </div>
-                  <button type="submit" className="btn btn-primary btn-add-member-mini">
-                    <Plus size={14} />
-                    <span>Thêm thành viên</span>
-                  </button>
-                </form>
+                </div>
 
                 {/* Users list inside settings */}
                 <div className="settings-members-listing">
@@ -456,7 +385,7 @@ export const SettingsDrawer = React.memo(({
                         <div className="member-card-text">
                           <span className="member-card-name">{u.name}</span>
                           <span className="member-card-phone">
-                            {u.phone}{u.email && ` • ${u.email}`}
+                            {u.email || 'Chưa có email'}
                           </span>
                         </div>
                       </div>

@@ -20,102 +20,10 @@ const getTomorrowAtTime = (hours, minutes) => {
 };
 
 const SEED_USERS = [];
-
-const SEED_MEETINGS = [
-  {
-    id: 'm1',
-    title: 'Họp Chiến Lược Zalo Mini App Q3',
-    startTime: getTodayAtTime(14, 0),
-    endTime: getTodayAtTime(15, 0),
-    duration: 60,
-    locationType: 'online',
-    locationDetail: 'https://meet.google.com/xyz-mno-pqr',
-    hostName: 'Nguyễn Văn A',
-    hostPhone: '0912345678',
-    note: 'Thành viên dùng mobile cài Zalo bản mới để kiểm tra.',
-    preparationContent: 'Chuẩn bị bản báo cáo doanh thu tháng trước và slide đề xuất tính năng mới.',
-    files: [
-      { name: 'Kế_hoạch_phát_triển_Q3.pdf', type: 'pdf', url: '#', size: '2.4 MB' },
-      { name: 'Slide_Giới_Thiệu_Hệ_Thống.pptx', type: 'ppt', url: '#', size: '5.1 MB' }
-    ],
-    createdBy: 'u1',
-    createdAt: new Date().toISOString()
-  },
-  {
-    id: 'm2',
-    title: 'Thống Nhất Quy Trình Gửi Báo Cáo AI',
-    startTime: getTomorrowAtTime(9, 30),
-    endTime: getTomorrowAtTime(10, 30),
-    duration: 60,
-    locationType: 'online',
-    locationDetail: 'https://meet.google.com/abc-defg-hij',
-    hostName: 'Trần Thị B (Ủy quyền)',
-    hostPhone: '0987654321',
-    note: 'Ủy quyền cho Trần Thị B chủ trì họp chính.',
-    preparationContent: 'Đọc kỹ tài liệu tích hợp eSMS & Zalo OA API trong kênh thiết lập.',
-    files: [],
-    createdBy: 'u1',
-    createdAt: new Date().toISOString()
-  }
-];
-
-const SEED_NOTES = [
-  { id: 'n1', meetingId: 'm1', userId: 'u1', content: 'Cần tối ưu dung lượng gói tin tải lên Zalo Cloud.', updatedAt: new Date().toISOString() },
-  { id: 'n2', meetingId: 'm1', userId: 'u2', content: 'Đã hoàn thiện liên kết API SMS chi phí thấp (eSMS 350đ/sms).', updatedAt: new Date().toISOString() },
-  { id: 'n3', meetingId: 'm1', userId: 'u3', content: 'Giao diện bo tròn góc 12px nhìn rất hiện đại.', updatedAt: new Date().toISOString() }
-];
-
-const SEED_POLLS = [
-  {
-    id: 'p1',
-    meetingId: 'm1',
-    question: 'Bạn đánh giá thế nào về thiết kế giao diện (UI) mới của App?',
-    pollType: 'single',
-    isActive: true,
-    options: [
-      { id: 'o1', text: 'Rất hiện đại, bo góc đẹp mắt (Khuyên dùng)' },
-      { id: 'o2', text: 'Bình thường, dễ sử dụng' },
-      { id: 'o3', text: 'Cần phối màu đỏ rực rỡ hơn' }
-    ],
-    answers: [
-      { userId: 'u1', optionId: 'o1' },
-      { userId: 'u2', optionId: 'o1' },
-      { userId: 'u3', optionId: 'o2' },
-      { userId: 'u4', optionId: 'o1' }
-    ]
-  },
-  {
-    id: 'p2',
-    meetingId: 'm1',
-    question: 'Chúng ta nên chọn nhà cung cấp nào làm kênh gửi SMS phụ trợ?',
-    pollType: 'multiple',
-    isActive: true,
-    options: [
-      { id: 'o4', text: 'eSMS (Giá rẻ nhất, hỗ trợ tốt)' },
-      { id: 'o5', text: 'VietGuy (Hạ tầng ổn định)' },
-      { id: 'o6', text: 'SpeedSMS (Tích hợp API nhanh)' }
-    ],
-    answers: [
-      { userId: 'u1', optionId: 'o4' },
-      { userId: 'u2', optionId: 'o4' },
-      { userId: 'u2', optionId: 'o5' },
-      { userId: 'u3', optionId: 'o4' },
-      { userId: 'u4', optionId: 'o6' }
-    ]
-  }
-];
-
-const SEED_REPORTS = [
-  {
-    id: 'r1',
-    meetingId: 'm1',
-    title: 'Họp Lập Kế Hoạch Dự Án Tuần 27',
-    summaryContent: `**BIÊN BẢN CUỘC HỌP CHÍNH THỨC**\n*Thời gian:* 09:00 - 10:00, Ngày 03/07/2026\n\n**1. Các quyết định đã thống nhất:**\n- Thống nhất phát triển ứng dụng dưới dạng Zalo Mini App sử dụng React Vite.\n- Thiết kế giao diện theo tông màu chủ đạo Trắng, Xanh dương Zalo, và các điểm nhấn Đỏ cảnh báo. Các nút và hộp nhập liệu bo tròn góc 12px-16px.\n\n**2. Phân công công việc:**\n- **Nguyễn Văn A:** Thiết lập cấu hình Zalo Developer Console và tích hợp App ID.\n- **Trần Thị B:** Nghiên cứu dịch vụ SMS Gateway (eSMS) và tích hợp API Google Meet.\n- **Lê Văn C & Phạm Văn D:** Phác thảo UI/UX các màn hình chính (Calendar, Meeting Interaction).\n\n**3. Vấn đề thảo luận thêm:**\n- Sẽ khảo sát ý kiến nhóm về chi phí gửi tin nhắn ZNS của Zalo OA so với tin nhắn SMS truyền thống.`,
-    status: 'published',
-    createdBy: 'Nguyễn Văn A',
-    createdAt: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString()
-  }
-];
+const SEED_MEETINGS = [];
+const SEED_NOTES = [];
+const SEED_POLLS = [];
+const SEED_REPORTS = [];
 
 const SEED_NOTIF_CONFIG = {
   zaloOaLinked: true,

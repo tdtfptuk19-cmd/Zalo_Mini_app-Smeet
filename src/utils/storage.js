@@ -142,10 +142,41 @@ export const Storage = {
     return res.json();
   },
 
-  verifyEmailOtp: async (email, otp) => {
+  verifyEmailOtp: async (email, otp, name = '', roles = ['member']) => {
     const res = await safeFetch(`${getApiBase()}/api/auth/verify-email-otp`, {
       method: 'POST',
-      body: JSON.stringify({ email, otp })
+      body: JSON.stringify({ email, otp, name, roles })
+    });
+    const data = await res.json();
+    if (data && data.token) {
+      localStorage.setItem('zmp_auth_token', data.token);
+    }
+    return data;
+  },
+
+  // Smart Member Invitation helpers
+  searchUsers: async (query) => {
+    const res = await safeFetch(`${getApiBase()}/api/users/search?q=${encodeURIComponent(query)}`);
+    return res.json();
+  },
+
+  sendMemberInvite: async ({ targetEmail, role }) => {
+    const res = await safeFetch(`${getApiBase()}/api/users/invite`, {
+      method: 'POST',
+      body: JSON.stringify({ targetEmail, role })
+    });
+    return res.json();
+  },
+
+  getPendingInvites: async () => {
+    const res = await safeFetch(`${getApiBase()}/api/invites/pending`);
+    return res.json();
+  },
+
+  respondInvite: async ({ inviteId, action }) => {
+    const res = await safeFetch(`${getApiBase()}/api/invites/respond`, {
+      method: 'POST',
+      body: JSON.stringify({ inviteId, action })
     });
     return res.json();
   },
@@ -337,14 +368,6 @@ export const Storage = {
     } catch (err) {
       return { success: false, message: `Không thể kết nối đến ${target}. Vui lòng kiểm tra lại URL Vercel.` };
     }
-  },
-
-  // Gửi báo cáo sự cố qua API lên backend
-  sendBugReport: async (reportPayload) => {
-    return safeFetch(`${getApiBase()}/api/reports/bug`, {
-      method: 'POST',
-      body: JSON.stringify(reportPayload)
-    });
   },
 
   // ─── Session / Logged In User ───

@@ -7,7 +7,7 @@ import nodemailer from 'nodemailer';
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import crypto from 'crypto';
 import { db } from './db.js';
-import { User, Meeting, Note, Poll, Report, NotifConfig, Otp } from './models/Schemas.js';
+import { User, Meeting, Note, Poll, Report, NotifConfig, Otp, Invite } from './models/Schemas.js';
 
 dotenv.config();
 
@@ -359,22 +359,6 @@ const requireAuth = async (req, res, next) => {
 
   try {
     let user = await User.findOne({ id: userId });
-    
-    // Automatically recreate the mock user u1 in development if missing from DB
-    if (!user && userId === 'u1') {
-      user = new User({
-        id: 'u1',
-        name: 'Nguyễn Văn A (Host)',
-        email: 'nguyenvana@gmail.com',
-        phone: '0912345678',
-        role: 'admin',
-        roles: ['admin'],
-        avatar: ZALO_DEFAULT_AVATAR,
-        is_email_verified: false // allows testing OTP flow on browser
-      });
-      await user.save();
-      console.log('[Dev] Automatically recreated mock user u1 in DB');
-    }
 
     if (!user) {
       return res.status(401).json({ error: 'Unauthorized: user không tồn tại trong hệ thống.' });
@@ -429,30 +413,36 @@ app.post('/api/auth/zalo', async (req, res) => {
 
   try {
     let user = await User.findOne({ $or: [{ zalo_id: id }, { id: id }] });
+    let isNewUser = false;
 
-    if (user && user.is_email_verified) {
-      // Cập nhật thông tin profile Zalo
+    if (!user) {
+      isNewUser = true;
+      user = new User({
+        id: 'u_' + Date.now() + '_' + Math.random().toString(36).substring(2, 5),
+        zalo_id: id,
+        name: name || 'Người dùng Zalo',
+        avatar: avatar || ZALO_DEFAULT_AVATAR,
+        phone: phone || '',
+        role: 'member',
+        roles: ['member'],
+        is_email_verified: false
+      });
+      await user.save();
+    } else {
       user.name = name || user.name;
       user.avatar = avatar || user.avatar;
       if (phone) user.phone = phone;
       if (!user.zalo_id) user.zalo_id = id;
       await user.save();
-
-      // Tạo JWT token
-      const token = signToken({ id: user.id, zalo_id: id }, process.env.JWT_SECRET || 'smeet_secret_key');
-
-      return res.json({ success: true, token, user });
     }
 
-    // Nếu chưa có user hoặc user chưa verify Email -> Báo cho client hiển thị form liên kết/xác thực Email
-    return res.json({
-      success: false,
-      needEmail: true,
-      zaloUser: { id, name, avatar, phone }
-    });
+    // Tạo JWT token bảo mật 7 ngày
+    const token = signToken({ id: user.id, zalo_id: id }, process.env.JWT_SECRET || 'smeet_secret_key');
+
+    return res.json({ success: true, token, user, isNewUser });
   } catch (err) {
     console.error('Auth API error:', err);
-    res.status(500).json({ error: 'Có lỗi xảy ra khi xác thực người dùng.' });
+    res.status(500).json({ error: 'Có lỗi xảy ra khi xác thực người dùng Zalo.' });
   }
 });
 
@@ -848,11 +838,17 @@ app.post('/api/auth/send-email-otp', async (req, res) => {
     html: htmlContent
   });
 
+  const existingUser = await User.findOne({ email });
+  const isReturningUser = !!existingUser;
+  const userName = existingUser ? existingUser.name : '';
+
   if (emailRes.success) {
     return res.json({
       success: true,
       message: `Mã OTP đã gửi đến hộp thư ${email}!`,
-      mode: 'real'
+      mode: 'real',
+      isReturningUser,
+      userName
     });
   } else {
     console.log(`[Email OTP] ℹ️ (Chế độ mô phỏng) Mã OTP cho ${email} là: ${code}`);
@@ -860,76 +856,21 @@ app.post('/api/auth/send-email-otp', async (req, res) => {
       success: true,
       message: `[Mô phỏng] Mã OTP của bạn là ${code}. (Để gửi email thật, cài RESEND_API_KEY hoặc EMAIL_USER/EMAIL_PASS trong server/.env)`,
       code,
-      mode: 'simulated'
+      mode: 'simulated',
+      isReturningUser,
+      userName
     });
-  }
-});
-
-// Route mới: Nhận báo cáo sự cố và gửi email về smeetreport@gmail.com
-app.post('/api/reports/bug', async (req, res) => {
-  const { email, name, category, description } = req.body;
-  if (!description || !description.trim()) {
-    return res.status(400).json({ error: 'Thiếu nội dung mô tả sự cố.' });
-  }
-
-  const htmlContent = `
-    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 24px; border: 1px solid #e2e8f0; border-radius: 12px; background-color: #ffffff;">
-      <h2 style="color: #ef4444; border-bottom: 2px solid #ef4444; padding-bottom: 8px; margin-top: 0;">⚠️ Báo Cáo Sự Cố Mới (Smeet App)</h2>
-      <p style="font-size: 14px; color: #334155;">Hệ thống vừa nhận được phản hồi báo cáo sự cố từ người dùng qua Zalo Mini App.</p>
-      
-      <table style="width: 100%; border-collapse: collapse; margin: 20px 0; font-size: 14px;">
-        <tr>
-          <td style="padding: 8px 0; font-weight: bold; width: 120px; color: #64748b;">Người gửi:</td>
-          <td style="padding: 8px 0; color: #1e293b;">${name || 'Thành viên'}</td>
-        </tr>
-        <tr>
-          <td style="padding: 8px 0; font-weight: bold; color: #64748b;">Email liên hệ:</td>
-          <td style="padding: 8px 0; color: #1e293b;"><a href="mailto:${email || ''}">${email || 'Chưa cung cấp'}</a></td>
-        </tr>
-        <tr>
-          <td style="padding: 8px 0; font-weight: bold; color: #64748b;">Phân loại:</td>
-          <td style="padding: 8px 0; color: #ef4444; font-weight: bold;">${(category || 'ui').toUpperCase()}</td>
-        </tr>
-        <tr>
-          <td style="padding: 8px 0; font-weight: bold; color: #64748b; vertical-align: top;">Chi tiết sự cố:</td>
-          <td style="padding: 8px 0; color: #1e293b; background-color: #f8fafc; border-radius: 6px; padding: 12px; white-space: pre-wrap; border: 1px solid #e2e8f0;">${description}</td>
-        </tr>
-      </table>
-      
-      <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 20px 0;" />
-      <p style="font-size: 12px; color: #94a3b8; text-align: center; margin-bottom: 0;">Email này được gửi tự động từ hệ thống Smeet.</p>
-    </div>
-  `;
-
-  try {
-    const emailRes = await sendEmailHelper({
-      to: 'smeetreport@gmail.com',
-      subject: `[Smeet Bug Report] - Phân loại: ${(category || 'ui').toUpperCase()}`,
-      html: htmlContent
-    });
-
-    if (emailRes.success) {
-      return res.json({ success: true, message: 'Báo cáo sự cố đã được gửi tới email quản trị viên!' });
-    } else {
-      console.log(`[Bug Report] ℹ️ (Mô phỏng) Đã nhận báo cáo sự cố từ ${email || 'guest'}: ${description}`);
-      return res.json({
-        success: true,
-        simulated: true,
-        message: '[Mô phỏng] Đã ghi nhận báo cáo sự cố (do server chưa cấu hình email gửi đi).'
-      });
-    }
-  } catch (err) {
-    console.error('Error sending bug report email:', err);
-    res.status(500).json({ error: 'Không thể gửi email báo cáo sự cố: ' + err.message });
   }
 });
 
 // ─────────────────────────────────────────────────────────────────────
 // 1d. Verify Email OTP (server-side check against EMAIL_OTP_CACHE)
 // ─────────────────────────────────────────────────────────────────────
-app.post('/api/auth/verify-email-otp', (req, res) => {
+app.post('/api/auth/verify-email-otp', async (req, res) => {
   const email = (req.body.email || '').trim().toLowerCase();
   const otp = (req.body.otp || '').trim();
+  const name = (req.body.name || '').trim();
+  const roles = req.body.roles;
 
   if (!email || !otp) {
     return res.status(400).json({ error: 'Thiếu email hoặc mã OTP.' });
@@ -949,10 +890,225 @@ app.post('/api/auth/verify-email-otp', (req, res) => {
     return res.status(400).json({ error: 'Mã OTP không chính xác. Vui lòng kiểm tra lại.' });
   }
 
-  // OTP hợp lệ — xóa khỏi cache để tránh tái sử dụng
+  // OTP hợp lệ — xóa khỏi cache
   EMAIL_OTP_CACHE.delete(email);
   console.log(`[Verify OTP] ✅ OTP xác thực thành công cho: ${email}`);
-  return res.json({ success: true, message: 'Xác thực OTP thành công.' });
+
+  try {
+    let user = await User.findOne({ email });
+
+    if (!user) {
+      // Tự động khởi tạo user mới theo Email
+      const rolesArr = Array.isArray(roles) && roles.length > 0 ? roles : ['member'];
+      const primaryRole = rolesArr.includes('admin') ? 'admin'
+        : rolesArr.includes('delegated') ? 'delegated'
+        : 'member';
+
+      user = new User({
+        id: 'u_' + Date.now() + '_' + Math.random().toString(36).substring(2, 5),
+        email,
+        name: name || email.split('@')[0],
+        role: primaryRole,
+        roles: rolesArr,
+        avatar: ZALO_DEFAULT_AVATAR,
+        is_email_verified: true
+      });
+      await user.save();
+    } else {
+      user.is_email_verified = true;
+      if (name) user.name = name;
+      if (Array.isArray(roles) && roles.length > 0) {
+        user.roles = roles;
+        user.role = roles.includes('admin') ? 'admin' : roles.includes('delegated') ? 'delegated' : 'member';
+      }
+      await user.save();
+    }
+
+    // Cấp JWT session token 7 ngày
+    const token = signToken({ id: user.id, email: user.email, role: user.role }, process.env.JWT_SECRET || 'smeet_secret_key');
+
+    return res.json({
+      success: true,
+      token,
+      user,
+      message: 'Đăng nhập bằng Email thành công!'
+    });
+  } catch (err) {
+    console.error('Error verifying email OTP:', err);
+    return res.status(500).json({ error: 'Lỗi xác thực hệ thống: ' + err.message });
+  }
+});
+
+// ─────────────────────────────────────────────────────────────────────
+// 1e. Smart User Search & Invitation Endpoints
+// ─────────────────────────────────────────────────────────────────────
+
+// GET /api/users/search?q=... : Tìm kiếm người dùng theo tên hoặc email
+app.get('/api/users/search', requireAuth, async (req, res) => {
+  const q = (req.query.q || '').trim();
+  if (!q || q.length < 1) {
+    return res.json([]);
+  }
+
+  try {
+    const regex = new RegExp(q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
+    const users = await User.find({
+      $or: [
+        { name: regex },
+        { email: regex }
+      ]
+    }).select('id name email role roles avatar -_id').limit(10);
+
+    res.json(users);
+  } catch (err) {
+    res.status(500).json({ error: 'Lỗi tìm kiếm thành viên: ' + err.message });
+  }
+});
+
+// POST /api/users/invite : Gửi lời mời gia nhập nhóm (In-app hoặc qua Email)
+app.post('/api/users/invite', requireAuth, async (req, res) => {
+  const targetEmail = (req.body.targetEmail || '').trim().toLowerCase();
+  const role = req.body.role || 'member';
+  const inviter = req.authUser || { name: 'Quản trị viên' };
+
+  if (!targetEmail) {
+    return res.status(400).json({ error: 'Địa chỉ Email không được để trống.' });
+  }
+
+  try {
+    const existingUser = await User.findOne({ email: targetEmail });
+    const inviteId = 'inv_' + Date.now() + '_' + Math.random().toString(36).substring(2, 5);
+
+    // Kiểm tra xem đã có lời mời pending cho email này chưa
+    const existingInvite = await Invite.findOne({ targetEmail, status: 'pending' });
+    if (existingInvite) {
+      return res.json({
+        success: true,
+        alreadyInvited: true,
+        message: `Lời mời đã được gửi trước đó tới ${targetEmail} và đang chờ phản hồi.`
+      });
+    }
+
+    const newInvite = new Invite({
+      id: inviteId,
+      inviterId: inviter.id || 'admin',
+      inviterName: inviter.name || 'Quản trị viên SMeet',
+      targetEmail,
+      targetUserId: existingUser ? existingUser.id : undefined,
+      role,
+      status: 'pending'
+    });
+    await newInvite.save();
+
+    if (existingUser) {
+      // Thành viên ĐÃ CÓ tài khoản: Tạo lời mời In-App
+      console.log(`[Member Invite] 📩 Đã gửi lời mời in-app cho user: ${existingUser.name} (${targetEmail})`);
+      return res.json({
+        success: true,
+        isRegistered: true,
+        message: `Đã gửi lời mời tham gia nhóm tới tài khoản ${existingUser.name} (${targetEmail}). Đang chờ xác nhận.`
+      });
+    } else {
+      // Email CHƯA CÓ tài khoản: Gửi Email thư mời mượt mà
+      const htmlInvite = `
+        <div style="font-family: Arial, sans-serif; max-width: 550px; margin: 0 auto; padding: 24px; border: 1px solid #e2e8f0; border-radius: 12px; background-color: #ffffff;">
+          <h2 style="color: #0068ff; text-align: center; margin-bottom: 8px;">Smeet Zalo Mini App</h2>
+          <p style="text-align: center; color: #64748b; font-size: 14px; margin-top: 0;">Lời mời gia nhập phòng họp & quản lý nhóm</p>
+          <div style="background-color: #f0f7ff; padding: 18px; border-radius: 10px; margin: 20px 0;">
+            <p style="margin: 0; color: #1e293b; font-size: 15px;">Xin chào,</p>
+            <p style="margin: 8px 0 0 0; color: #334155; font-size: 14px;">
+              <strong>${inviter.name}</strong> đã mời bạn tham gia hệ thống họp thông minh <strong>SMeet</strong> với vai trò <strong>${role === 'admin' ? 'Quản lý' : role === 'delegated' ? 'Ủy quyền' : 'Thành viên'}</strong>.
+            </p>
+          </div>
+          <p style="color: #475569; font-size: 14px; line-height: 1.5;">
+            Để nhận lời mời và sử dụng ứng dụng, vui lòng mở ứng dụng <strong>SMeet</strong> trên Zalo bằng cách nhập địa chỉ Email <strong>${targetEmail}</strong> và bấm nhận lời mời.
+          </p>
+          <div style="text-align: center; margin: 24px 0;">
+            <a href="https://zalo.me/smeet" style="background-color: #0068ff; color: #ffffff; text-decoration: none; padding: 12px 24px; border-radius: 8px; font-weight: bold; font-size: 14px; display: inline-block;">
+              Truy cập SMeet trên Zalo
+            </a>
+          </div>
+          <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 20px 0;" />
+          <p style="font-size: 12px; color: #94a3b8; text-align: center;">Trân trọng, Đội ngũ SMeet Team</p>
+        </div>
+      `;
+
+      await sendEmailHelper({
+        to: targetEmail,
+        subject: `[SMeet] ${inviter.name} đã mời bạn tham gia nhóm họp`,
+        html: htmlInvite
+      });
+
+      console.log(`[Member Invite] ✉️ Đã gửi Email thư mời tham gia SMeet tới: ${targetEmail}`);
+      return res.json({
+        success: true,
+        isRegistered: false,
+        message: `Đã gửi Email thư mời tham gia SMeet tới địa chỉ ${targetEmail} thành công!`
+      });
+    }
+  } catch (err) {
+    console.error('Invite error:', err);
+    res.status(500).json({ error: 'Không thể gửi lời mời: ' + err.message });
+  }
+});
+
+// GET /api/invites/pending : Lấy danh sách lời mời chờ duyệt của user hiện tại
+app.get('/api/invites/pending', requireAuth, async (req, res) => {
+  try {
+    const email = req.authUser?.email;
+    if (!email) return res.json([]);
+
+    const invites = await Invite.find({ targetEmail: email, status: 'pending' }).sort({ createdAt: -1 });
+    res.json(invites);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/invites/respond : Thành viên nhận (Accept) hoặc Từ chối (Decline) lời mời
+app.post('/api/invites/respond', requireAuth, async (req, res) => {
+  const { inviteId, action } = req.body; // action = 'accept' | 'decline'
+  const user = req.authUser;
+
+  if (!inviteId || !['accept', 'decline'].includes(action)) {
+    return res.status(400).json({ error: 'Hành động phản hồi lời mời không hợp lệ.' });
+  }
+
+  try {
+    const invite = await Invite.findOne({ id: inviteId, targetEmail: user.email });
+    if (!invite) {
+      return res.status(404).json({ error: 'Không tìm thấy lời mời phù hợp.' });
+    }
+
+    if (action === 'accept') {
+      invite.status = 'accepted';
+      await invite.save();
+
+      // Cập nhật vai trò mới cho user trong DB
+      const currentRoles = Array.isArray(user.roles) ? user.roles : [user.role || 'member'];
+      if (!currentRoles.includes(invite.role)) {
+        currentRoles.push(invite.role);
+      }
+      const updatedUser = await User.findOneAndUpdate(
+        { id: user.id },
+        { 
+          roles: currentRoles, 
+          role: currentRoles.includes('admin') ? 'admin' : currentRoles.includes('delegated') ? 'delegated' : 'member'
+        },
+        { new: true }
+      );
+
+      console.log(`[Invite Respond] 🎉 User ${user.name} đã CHẤP NHẬN lời mời từ ${invite.inviterName}`);
+      return res.json({ success: true, action: 'accepted', user: updatedUser, message: `Bạn đã chấp nhận tham gia nhóm với vai trò ${invite.role}!` });
+    } else {
+      invite.status = 'declined';
+      await invite.save();
+      console.log(`[Invite Respond] ❌ User ${user.name} đã TỪ CHỐI lời mời từ ${invite.inviterName}`);
+      return res.json({ success: true, action: 'declined', message: 'Bạn đã từ chối lời mời tham gia nhóm.' });
+    }
+  } catch (err) {
+    res.status(500).json({ error: 'Lỗi phản hồi lời mời: ' + err.message });
+  }
 });
 
 // ─────────────────────────────────────────────────────────────────────

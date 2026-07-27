@@ -362,17 +362,6 @@ export const MeetingFormModal = React.memo(({
                     required
                   />
                 </div>
-                <div className="form-group">
-                  <label htmlFor="form-hostphone">SĐT người chủ trì</label>
-                  <input 
-                    id="form-hostphone"
-                    type="tel" 
-                    value={formHostPhone} 
-                    onChange={(e) => setFormHostPhone(e.target.value)} 
-                    className="input-text"
-                    required
-                  />
-                </div>
               </div>
 
               <div className="form-group">
@@ -558,7 +547,7 @@ export const MeetingFormModal = React.memo(({
                           <img src={u.avatar} alt={u.name} className="autocomplete-avatar" />
                           <div className="autocomplete-user-info">
                             <span className="user-name">{u.name}</span>
-                            <span className="user-phone">{u.phone} ({getRoleLabel(u)})</span>
+                            <span className="user-phone">{u.email} ({getRoleLabel(u)})</span>
                           </div>
                           <Plus size={14} color="var(--primary-color)" />
                         </button>

@@ -4,8 +4,8 @@ const UserSchema = new mongoose.Schema({
   id: { type: String, required: true, unique: true, index: true },
   zalo_id: { type: String, index: true },
   name: { type: String, required: true },
-  email: { type: String },
-  is_email_verified: { type: Boolean, default: false },
+  email: { type: String, index: true, lowercase: true, trim: true },
+  is_email_verified: { type: Boolean, default: true },
   phone: { type: String },
   // role: Primary role (backward compat), roles: Mảng các role (hỗ trợ đa vai trò)
   role: { type: String, default: 'member' },
@@ -104,3 +104,16 @@ const OtpSchema = new mongoose.Schema({
 OtpSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 });
 
 export const Otp = mongoose.model('Otp', OtpSchema);
+
+const InviteSchema = new mongoose.Schema({
+  id: { type: String, required: true, unique: true, index: true },
+  inviterId: { type: String, required: true },
+  inviterName: { type: String, required: true },
+  targetEmail: { type: String, required: true, lowercase: true, trim: true, index: true },
+  targetUserId: { type: String },
+  role: { type: String, default: 'member' },
+  status: { type: String, default: 'pending', index: true }, // pending | accepted | declined
+  createdAt: { type: Date, default: Date.now }
+});
+
+export const Invite = mongoose.model('Invite', InviteSchema);
