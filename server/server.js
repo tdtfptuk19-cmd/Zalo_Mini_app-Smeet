@@ -916,8 +916,9 @@ app.post('/api/auth/verify-email-otp', async (req, res) => {
       await user.save();
     } else {
       user.is_email_verified = true;
-      if (name) user.name = name;
-      if (Array.isArray(roles) && roles.length > 0) {
+      if (name && name.trim()) user.name = name.trim();
+      // Giữ nguyên roles cũ của tài khoản khi đăng nhập lại (tránh ghi đè vai trò Admin)
+      if (Array.isArray(roles) && roles.length > 0 && (!user.roles || user.roles.length === 0)) {
         user.roles = roles;
         user.role = roles.includes('admin') ? 'admin' : roles.includes('delegated') ? 'delegated' : 'member';
       }

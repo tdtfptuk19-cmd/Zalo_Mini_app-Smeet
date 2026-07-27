@@ -67,7 +67,7 @@ export const Auth = React.memo(({
     }
 
     setIsLoading(true);
-    const rolesArray = Array.isArray(registerRole) ? registerRole : [registerRole];
+    const rolesArray = isReturningUser ? undefined : (Array.isArray(registerRole) ? registerRole : [registerRole]);
     const success = await handleVerifyEmailOtp(cleanEmail, otpCode.trim(), displayName.trim(), rolesArray);
     setIsLoading(false);
 
