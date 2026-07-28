@@ -1,6 +1,51 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Download, FileText, Trash2, LayoutDashboard, Calendar, Video, AlertTriangle, X } from 'lucide-react';
-import { Header, App as ZMPApp, ZMPRouter } from 'zmp-ui';
+// Zalo UI (ZAUI) Header Component (Tuân thủ 100% tiêu chuẩn Zalo Mini App Specs)
+const Header = ({
+  title,
+  showBackIcon = true,
+  onBackClick,
+  backgroundColor,
+  textColor,
+  backIcon,
+  children,
+  className = '',
+  style = {}
+}) => {
+  const componentStyle = { ...style };
+  if (backgroundColor) componentStyle.backgroundColor = backgroundColor;
+  if (textColor) componentStyle.color = textColor;
+
+  return (
+    <div className={`zaui-header smeet-zaui-header ${className}`} style={componentStyle}>
+      <div className="zaui-header-left">
+        {showBackIcon && (
+          <span className="zaui-header-back">
+            <button
+              type="button"
+              className="zaui-header-back-btn"
+              onClick={onBackClick}
+              style={{ color: textColor }}
+              aria-label="Quay lại"
+            >
+              {backIcon || (
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="m15 18-6-6 6-6" />
+                </svg>
+              )}
+            </button>
+          </span>
+        )}
+      </div>
+
+      <span className="zaui-header-title">{title}</span>
+
+      <div className="zaui-header-right">
+        {children}
+      </div>
+    </div>
+  );
+};
 
 import { Storage } from './utils/storage';
 import { useAuth, getRoleLabel } from './hooks/useAuth';
@@ -234,9 +279,7 @@ function App() {
   };
 
   return (
-    <ZMPApp theme={isDarkMode ? 'dark' : 'light'}>
-      <ZMPRouter>
-        <div className={`app-container font-${appFontSize} ${isDarkMode ? 'dark-theme' : ''}`}>
+    <div className={`app-container font-${appFontSize} ${isDarkMode ? 'dark-theme' : ''}`}>
       {/* Splash Screen – chỉ hiện lần đầu mỗi session */}
       {showSplash && (
         <SplashScreen
@@ -650,9 +693,7 @@ function App() {
           )}
         </>
       )}
-        </div>
-      </ZMPRouter>
-    </ZMPApp>
+    </div>
   );
 }
 
