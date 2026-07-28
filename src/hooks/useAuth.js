@@ -35,7 +35,7 @@ const REGISTRATION_OPEN = true;
 const OTP_EXPIRY_SECONDS = 300; // 5 phút
 
 export function useAuth(triggerNotification) {
-  const [currentUser, setCurrentUser] = useState(null);
+  const [currentUser, setCurrentUser] = useState(() => Storage.getLoggedInUserSync());
   const [users, setUsers] = useState([]);
   const [loginEmail, setLoginEmail] = useState('');
   const [loginPhone, setLoginPhone] = useState('');
@@ -312,6 +312,7 @@ export function useAuth(triggerNotification) {
     handleSavePersonalName,
     handleAddMember,
     handleDeleteMember,
+    handleUserChange,
     toggleUserRole,
     handleAvatarChange,
     resetLoginStates,

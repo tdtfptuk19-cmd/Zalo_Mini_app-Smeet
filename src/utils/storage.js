@@ -374,17 +374,16 @@ export const Storage = {
   // Session hết hạn sau 3 ngày (tính từ lần đăng nhập gần nhất)
   SESSION_EXPIRY_MS: 3 * 24 * 60 * 60 * 1000, // 3 ngày = 259200000ms
 
-  getLoggedInUser: async () => {
+  getLoggedInUserSync: () => {
     try {
       const userJson = window.localStorage.getItem('zmp_logged_in_user');
       if (!userJson) return null;
       const saved = JSON.parse(userJson);
-      // Kiểm tra session đã hết hạn chưa
       if (saved && saved._loginAt) {
         const elapsed = Date.now() - saved._loginAt;
         if (elapsed > Storage.SESSION_EXPIRY_MS) {
           window.localStorage.removeItem('zmp_logged_in_user');
-          console.info('[Session] Phương pháp bảo vệ: Session đã hết hạn sau 3 ngày. Yêu cầu đăng nhập lại.');
+          window.localStorage.removeItem('zmp_auth_token');
           return null;
         }
       }
@@ -392,6 +391,10 @@ export const Storage = {
     } catch {
       return null;
     }
+  },
+
+  getLoggedInUser: async () => {
+    return Storage.getLoggedInUserSync();
   },
   
   setLoggedInUser: async (user) => {

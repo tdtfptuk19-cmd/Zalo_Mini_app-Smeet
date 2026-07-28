@@ -16,15 +16,17 @@ export function formatExternalUrl(url) {
   return trimmed;
 }
 
+import { openWebview } from 'zmp-sdk/apis';
+
 /**
  * Mở URL trên trình duyệt / Zalo Mini App WebView an toàn
  */
-export function openExternalUrl(url) {
+export async function openExternalUrl(url) {
   if (!url) return;
   const formatted = formatExternalUrl(url);
   try {
-    if (window.zmp && typeof window.zmp.openWebview === 'function') {
-      window.zmp.openWebview({ url: formatted });
+    if (typeof openWebview === 'function') {
+      await openWebview({ url: formatted });
       return;
     }
   } catch {}

@@ -14,7 +14,8 @@
     "lucide-react": "^1.23.0",
     "react": "^19.2.7",
     "react-dom": "^19.2.7",
-    "zmp-sdk": "^2.51.6"
+    "zmp-sdk": "^2.51.6",
+    "zmp-ui": "^1.11.14"
   },
   "devDependencies": {
     "@types/react": "^19.2.17",

@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { openShareSheet } from 'zmp-sdk/apis';
 import { openExternalUrl, formatExternalUrl } from '../utils/calendarHelper';
 import { 
   Clock, Video, Sparkles, Download, Settings, CheckCircle, Save, 
@@ -113,11 +114,10 @@ export const MeetingRoom = React.memo(({
     handleAddPoll(newPollQuestion, newPollType, newPollOptions);
   };
 
-  const handleShareMeeting = () => {
+  const handleShareMeeting = async () => {
     try {
-      // Simulate/trigger Zalo SDK Share sheet
-      if (window.ZMP_SDK) {
-        window.ZMP_SDK.openShareSheet({
+      if (typeof openShareSheet === 'function') {
+        await openShareSheet({
           type: 'zmp',
           data: {
             title: `Lời mời họp: ${activeMeeting.title}`,
@@ -126,12 +126,16 @@ export const MeetingRoom = React.memo(({
             path: `pages/index?meetingId=${activeMeeting.id}`
           }
         });
-      } else {
-        navigator.clipboard.writeText(window.location.origin + "?meetingId=" + activeMeeting.id);
-        triggerNotification("[Hệ thống] Link cuộc họp đã được sao chép vào bộ nhớ đệm!");
+        return;
       }
-    } catch (err) {
-      console.error(err);
+    } catch {
+      // Fallback if not running inside Zalo Mini App container
+    }
+    try {
+      await navigator.clipboard.writeText(window.location.origin + "?meetingId=" + activeMeeting.id);
+      triggerNotification("[Hệ thống] Link cuộc họp đã được sao chép vào bộ nhớ đệm!");
+    } catch {
+      triggerNotification("[Hệ thống] Không thể sao chép tự động. Vui lòng sao chép link trên thanh địa chỉ.");
     }
   };
 

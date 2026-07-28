@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Download, FileText, Trash2, LayoutDashboard, Calendar, Video, AlertTriangle, X } from 'lucide-react';
+import { Header } from 'zmp-ui';
 
 import { Storage } from './utils/storage';
 import { useAuth, getRoleLabel } from './hooks/useAuth';
@@ -275,33 +276,42 @@ function App() {
         />
       ) : (
         <>
-          {/* Header Layout */}
-          <header className="app-header">
-            <div className="header-top">
-              <h1 className="app-title app-title-clickable" onClick={() => switchTab('calendar')}>
-                <img src={logo} alt="Logo" className="app-logo" />
-                <span>{t('Smeet', 'Smeet')}</span>
-              </h1>
-              
-              {/* Profile click opens Drawer */}
-              <div 
-                onClick={() => auth.setIsAvatarModalOpen(true)}
-                className="header-avatar-container header-profile-trigger"
-              >
-                <div className="header-profile-meta">
-                  <span className="header-profile-name">{auth.currentUser.name}</span>
-                  <span className="header-profile-role">
-                    {getRoleLabel(auth.currentUser, appLanguage)}
-                  </span>
-                </div>
-                <img 
-                  src={auth.currentUser.avatar} 
-                  alt={auth.currentUser.name} 
-                  className="header-profile-avatar" 
-                />
+          {/* Official Zalo UI Header Layout Standard */}
+          <Header
+            title={
+              activeTab === 'dashboard'
+                ? t('Smeet', 'Smeet')
+                : activeTab === 'calendar'
+                ? t('Lịch Họp Nhóm', 'Meeting Schedule')
+                : activeTab === 'meeting'
+                ? (activeMeeting ? activeMeeting.title : t('Phòng Họp Trực Tuyến', 'Online Meeting Room'))
+                : t('Kho Báo Cáo', 'Reports Archive')
+            }
+            showBackIcon={activeTab !== 'dashboard'}
+            onBackClick={() => switchTab('dashboard')}
+            className="smeet-zaui-header"
+            backgroundColor={isDarkMode ? '#141415' : '#ffffff'}
+            textColor={isDarkMode ? '#f4f5f6' : '#141415'}
+          >
+            {/* User Profile Action Trigger */}
+            <div 
+              onClick={() => auth.setIsAvatarModalOpen(true)}
+              className="header-avatar-container header-profile-trigger"
+              title={auth.currentUser.name}
+            >
+              <div className="header-profile-meta">
+                <span className="header-profile-name">{auth.currentUser.name}</span>
+                <span className="header-profile-role">
+                  {getRoleLabel(auth.currentUser, appLanguage)}
+                </span>
               </div>
+              <img 
+                src={auth.currentUser.avatar} 
+                alt={auth.currentUser.name} 
+                className="header-profile-avatar" 
+              />
             </div>
-          </header>
+          </Header>
 
           {/* Main workspace scroll view */}
           <main className="app-content">
@@ -309,7 +319,6 @@ function App() {
             {/* Tab 0: Dashboard Tổng quan */}
             {activeTab === 'dashboard' && (
               <div className="tab-view-wrapper">
-                <h3 className="section-tab-title">{t('Tổng quan cuộc họp nhóm', 'Team Meeting Overview')}</h3>
                 <Dashboard
                   currentUser={auth.currentUser}
                   onEnterMeeting={onEnterMeetingRoomFromList}
@@ -320,7 +329,6 @@ function App() {
             {/* Tab 1: Calendar Scheduling view */}
             {activeTab === 'calendar' && (
               <div className="tab-view-wrapper">
-                <h3 className="section-tab-title">{t('Lịch họp nhóm', 'Group Meeting Schedule')}</h3>
                 <CalendarView
                   currentDate={meetings.currentDate}
                   setCurrentDate={meetings.setCurrentDate}
@@ -347,7 +355,6 @@ function App() {
             {/* Tab 2: Meeting Room Workspace (Autosave, Polls, AI minutes generator) */}
             {activeTab === 'meeting' && (
               <div className="tab-view-wrapper">
-                <h3 className="section-tab-title">{t('Phòng họp trực tuyến', 'Online Meeting Room')}</h3>
                 <MeetingRoom
                   activeMeeting={activeMeeting}
                   setActiveMeeting={setActiveMeeting}
@@ -408,8 +415,6 @@ function App() {
             {/* Tab 3: Report Archives view */}
             {activeTab === 'reports' && (
               <div className="reports-view">
-                <h3 className="section-tab-title">{t('Kho lưu trữ báo cáo cuộc họp', 'Meeting Reports Archive')}</h3>
-                
                 {reports.length === 0 ? (
                   <div className="card reports-empty-card">
                     Chưa có báo cáo cuộc họp nào được lưu lại.

@@ -145,22 +145,26 @@ export const MeetingFormModal = React.memo(({
                  file.name.endsWith('.pdf') ? 'pdf' : 
                  file.name.endsWith('.mp4') || file.name.endsWith('.avi') ? 'video' : 'other';
 
-    // Read file metadata and create object URL to simulate actual download link
-    const newFile = {
-      name: file.name,
-      type,
-      url: URL.createObjectURL(file), // Actual local blob URL!
-      size: `${(file.size / (1024 * 1024)).toFixed(2)} MB`
-    };
-
-    setTimeout(() => {
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const newFile = {
+        name: file.name,
+        type,
+        url: event.target.result, // Persistent Base64 Data URL!
+        size: `${(file.size / (1024 * 1024)).toFixed(2)} MB`
+      };
       setFormFiles((prev) => [...prev, newFile]);
       setIsUploading(false);
-    }, 800);
+    };
+    reader.onerror = () => {
+      setIsUploading(false);
+      setFormError('Không thể đọc tệp tin. Vui lòng thử lại.');
+    };
+    reader.readAsDataURL(file);
   };
 
   const removeFile = (idx) => {
-    setFormFiles(formFiles.filter((_, i) => i !== idx));
+    setFormFiles(prev => prev.filter((_, i) => i !== idx));
   };
 
   // Autocomplete suggestions filter
@@ -222,6 +226,14 @@ export const MeetingFormModal = React.memo(({
 
     const startDateTime = new Date(`${formDate}T${formStartTime}:00`);
     const endDateTime = new Date(`${formDate}T${formEndTime}:00`);
+    
+    if (isNaN(startDateTime.getTime()) || isNaN(endDateTime.getTime()) || endDateTime <= startDateTime) {
+      setFormError('Thời gian kết thúc phải diễn ra sau thời gian bắt đầu!');
+      setIsSubmitting(false);
+      setStep(2);
+      return;
+    }
+
     const duration = Math.round((endDateTime.getTime() - startDateTime.getTime()) / (1000 * 60));
 
     const finalLocationDetail = formLocationType === 'online' 

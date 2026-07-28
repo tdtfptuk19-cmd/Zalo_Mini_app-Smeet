@@ -3,12 +3,12 @@
     "pages/index"
   ],
   "app": {
-    "title": "Lịch Họp & Ý Kiến Nhóm",
-    "headerTitle": "Lịch Họp Nhóm",
+    "title": "Smeet - Lịch Họp Nhóm",
+    "headerTitle": "Smeet",
     "headerColor": "#0068FF",
     "textColor": "white",
     "statusBar": "normal",
-    "leftButton": "back",
+    "leftButton": "none",
     "textAlign": "center",
     "actionBarHidden": false
   },

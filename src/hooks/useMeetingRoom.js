@@ -156,7 +156,7 @@ export function useMeetingRoom(currentUser, activeMeeting, setActiveMeeting, tri
 
   // Poll voting – truyền meetingId để đường dẫn API đúng
   const handleVote = async (pollId, optionId) => {
-    if (!activeMeeting) return false;
+    if (!activeMeeting || !currentUser) return false;
     try {
       await Storage.submitAnswer(activeMeeting.id, pollId, currentUser.id, optionId);
       const loadedPolls = await Storage.getPolls(activeMeeting.id);
@@ -306,6 +306,16 @@ export function useMeetingRoom(currentUser, activeMeeting, setActiveMeeting, tri
       abortControllerRef.current = null;
     }
   };
+
+  // Cleanup pending AI report requests on unmount
+  useEffect(() => {
+    return () => {
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+        abortControllerRef.current = null;
+      }
+    };
+  }, []);
 
   const handleSaveReport = async (title, content, creatorName, refreshReports) => {
     try {
