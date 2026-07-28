@@ -13,10 +13,18 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700&display=swap" rel="stylesheet">
     <title>Smeet - Lịch Họp & Ý Kiến</title>
     <script>
+      // Debug error overlay — CHỈ HIỂN THỊ KHI CHẠY LOCALHOST (development).
+      // Tắt hoàn toàn trong production để tránh lộ stack trace cho người dùng thật
+      // và đảm bảo tuân thủ yêu cầu xét duyệt Zalo Mini App.
+      var __IS_DEV__ = (
+        window.location.hostname === 'localhost' ||
+        window.location.hostname === '127.0.0.1'
+      );
+
       window.addEventListener('error', function(event) {
         var messageText = event.message || (event.error && event.error.message) || '';
-        
-        // Ignore non-fatal network and external script errors (e.g. adblocker, Zalo analytics script, fetch errors)
+
+        // Bỏ qua các lỗi không nghiêm trọng từ mạng / script ngoài
         var isIgnored = false;
         if (messageText) {
           var msg = messageText.toLowerCase();
@@ -32,14 +40,19 @@
             isIgnored = true;
           }
         } else {
-          // If message is empty but it's a resource error (script/link/image failed to load), ignore it
           if (event.target && (event.target.tagName === 'SCRIPT' || event.target.tagName === 'LINK' || event.target.tagName === 'IMG')) {
             isIgnored = true;
           }
         }
-        
+
         if (isIgnored) {
           console.warn("Ignored non-fatal error:", messageText || event);
+          return;
+        }
+
+        // Chỉ hiện debug overlay khi đang chạy local dev
+        if (!__IS_DEV__) {
+          console.error('[Smeet] Unhandled error:', messageText, event.error && event.error.stack);
           return;
         }
 
@@ -62,17 +75,17 @@
           errorBox.style.fontSize = '12px';
           errorBox.style.whiteSpace = 'pre-wrap';
           errorBox.style.textAlign = 'left';
-          
+
           var title = document.createElement('h2');
           title.style.margin = '0 0 10px 0';
-          title.innerText = 'App Crash Log';
+          title.innerText = '[DEV] App Crash Log';
           errorBox.appendChild(title);
-          
+
           var msg = document.createElement('div');
           msg.id = 'debug-error-msg';
           msg.style.fontWeight = 'bold';
           errorBox.appendChild(msg);
-          
+
           var stack = document.createElement('pre');
           stack.id = 'debug-error-stack';
           stack.style.marginTop = '10px';
@@ -81,13 +94,13 @@
           stack.style.borderRadius = '4px';
           stack.style.overflow = 'auto';
           errorBox.appendChild(stack);
-          
+
           document.body.appendChild(errorBox);
         }
-        
+
         var msgToDisplay = messageText || 'Unknown error';
         var stackText = (event.error && event.error.stack) || 'No stack trace available';
-        
+
         document.getElementById('debug-error-msg').innerText = msgToDisplay;
         document.getElementById('debug-error-stack').innerText = stackText;
       });

@@ -1,6 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { authorize, getUserInfo } from 'zmp-sdk/apis';
-import { Download, FileText, Trash2, LayoutDashboard, Calendar, Video, Plus } from 'lucide-react';
+import { Download, FileText, Trash2, LayoutDashboard, Calendar, Video, AlertTriangle, X } from 'lucide-react';
 
 import { Storage } from './utils/storage';
 import { useAuth, getRoleLabel } from './hooks/useAuth';
@@ -53,6 +52,12 @@ function App() {
 
   // Pending invites state
   const [pendingInvites, setPendingInvites] = useState([]);
+
+  // Custom confirm modal (thay thế window.confirm — không hoạt động trong Zalo Webview)
+  const [confirmModal, setConfirmModal] = useState(null); // { message, onConfirm }
+  const showConfirm = useCallback((message, onConfirm) => {
+    setConfirmModal({ message, onConfirm });
+  }, []);
 
   // 1. Notification trigger state
   const [simulatedNotif, setSimulatedNotif] = useState(null);
@@ -458,16 +463,19 @@ function App() {
                             Sao chép
                           </button>
                           <button 
-                            onClick={async () => {
-                              if (window.confirm(`Bạn có chắc chắn muốn xóa báo cáo "${report.title}"?`)) {
-                                try {
-                                  await Storage.deleteReport(report.id);
-                                  await refreshReports();
-                                  triggerNotification('[Hệ thống] Đã xóa báo cáo thành công.');
-                                } catch (err) {
-                                  console.error(err);
+                            onClick={() => {
+                              showConfirm(
+                                `Bạn có chắc chắn muốn xóa báo cáo "${report.title}"?`,
+                                async () => {
+                                  try {
+                                    await Storage.deleteReport(report.id);
+                                    await refreshReports();
+                                    triggerNotification('[Hệ thống] Đã xóa báo cáo thành công.');
+                                  } catch (err) {
+                                    console.error(err);
+                                  }
                                 }
-                              }
+                              );
                             }}
                             className="btn btn-danger report-action-btn"
                             style={{ fontSize: '0.85em' }}
@@ -583,6 +591,55 @@ function App() {
               invite={pendingInvites[0]}
               onRespond={handleRespondInvite}
             />
+          )}
+
+          {/* Custom Confirm Modal — thay thế window.confirm() không hoạt động trong Zalo Webview */}
+          {confirmModal && (
+            <div
+              style={{
+                position: 'fixed', inset: 0, zIndex: 99999,
+                background: 'rgba(0,0,0,0.55)', backdropFilter: 'blur(4px)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                padding: '20px'
+              }}
+              onClick={() => setConfirmModal(null)}
+            >
+              <div
+                onClick={e => e.stopPropagation()}
+                style={{
+                  background: 'var(--card-bg, #fff)', borderRadius: '16px',
+                  padding: '24px 20px', maxWidth: '320px', width: '100%',
+                  boxShadow: '0 20px 60px rgba(0,0,0,0.3)',
+                  display: 'flex', flexDirection: 'column', gap: '16px'
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px' }}>
+                  <AlertTriangle size={22} color="#ef4444" style={{ flexShrink: 0, marginTop: '2px' }} />
+                  <p style={{ margin: 0, fontSize: '0.95rem', lineHeight: '1.5', color: 'var(--text-color, #1e293b)', fontWeight: 500 }}>
+                    {confirmModal.message}
+                  </p>
+                </div>
+                <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
+                  <button
+                    className="btn btn-secondary"
+                    style={{ padding: '8px 18px', borderRadius: '8px', fontSize: '0.9rem' }}
+                    onClick={() => setConfirmModal(null)}
+                  >
+                    Hủy
+                  </button>
+                  <button
+                    className="btn btn-danger"
+                    style={{ padding: '8px 18px', borderRadius: '8px', fontSize: '0.9rem', background: '#ef4444', color: '#fff', border: 'none' }}
+                    onClick={() => {
+                      confirmModal.onConfirm();
+                      setConfirmModal(null);
+                    }}
+                  >
+                    Xác nhận xóa
+                  </button>
+                </div>
+              </div>
+            </div>
           )}
         </>
       )}
