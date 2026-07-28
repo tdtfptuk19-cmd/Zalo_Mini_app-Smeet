@@ -211,9 +211,10 @@ async function runReminderCheck() {
 
       // === Nhắc lần 1: trước 24 giờ ===
       if (!sentTypes.has('24h') && startTime >= in24h && startTime <= in25h) {
+        const link = meeting.locationDetail && meeting.locationDetail.startsWith('http') ? meeting.locationDetail : '';
         const locationText = meeting.locationType === 'online'
           ? `🔗 Online${meeting.locationDetail ? ': ' + meeting.locationDetail : ''}`
-          : `📍 Tại chỗ: ${meeting.locationDetail || 'Chưa cập nhật'}${meeting.meetLink ? '\n🔗 Meet: ' + meeting.meetLink : ''}`;
+          : `📍 Tại chỗ: ${meeting.locationDetail || 'Chưa cập nhật'}${link ? '\n🔗 Link: ' + link : ''}`;
 
         const msg = [
           `📅 NHẮC HỌP (ngày mai) — Smeet`,
@@ -235,7 +236,7 @@ async function runReminderCheck() {
 
       // === Nhắc lần 2: trước 30 phút ===
       if (!sentTypes.has('30min') && startTime >= in29min && startTime <= in31min) {
-        const meetLinkLine = meeting.meetLink || meeting.locationDetail;
+        const meetLinkLine = meeting.locationDetail || '';
         const msg = [
           `🔔 SẮP HỌP (30 phút nữa) — Smeet`,
           `━━━━━━━━━━━━━━━━━━`,
@@ -379,6 +380,8 @@ const requireAuth = async (req, res, next) => {
 const checkConflict = async (newMeeting) => {
   const newStart = new Date(newMeeting.startTime).getTime();
   const newEnd = new Date(newMeeting.endTime).getTime();
+
+  if (isNaN(newStart) || isNaN(newEnd)) return null;
 
   // Chỉ kiểm tra conflict cho meeting offline (phòng vật lý có giới hạn)
   if (newMeeting.locationType !== 'offline') return null;
@@ -716,7 +719,8 @@ app.post('/api/auth/zalo-link-email', async (req, res) => {
 // ─────────────────────────────────────────────────────────────────────
 // 1b. Public user lookup by email or phone (for OTP login before session exists)
 // ─────────────────────────────────────────────────────────────────────
-const EMAIL_OTP_CACHE = new Map();
+// EMAIL_OTP_CACHE đã được thay bằng MongoDB Otp để hoạt động đúng trên Vercel serverless
+// (in-memory Map bị mất giữa các lambda invocation khác nhau)
 
 app.get('/api/users/lookup', async (req, res) => {
   const email = (req.query.email || '').trim().toLowerCase();
@@ -724,7 +728,8 @@ app.get('/api/users/lookup', async (req, res) => {
 
   let query = {};
   if (email) {
-    query.email = { $regex: new RegExp(`^${email}$`, 'i') };
+    const escapedEmail = email.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    query.email = { $regex: new RegExp(`^${escapedEmail}$`, 'i') };
   } else if (phone) {
     query.phone = phone;
   } else {
@@ -815,9 +820,18 @@ app.post('/api/auth/send-email-otp', async (req, res) => {
   }
 
   const code = Math.floor(100000 + Math.random() * 900000).toString();
-  const expiresAt = Date.now() + 5 * 60 * 1000;
+  const expiresAt = new Date(Date.now() + 5 * 60 * 1000); // 5 phút
 
-  EMAIL_OTP_CACHE.set(email, { code, expiresAt });
+  try {
+    // Lưu OTP vào MongoDB (thay vì in-memory Map để hoạt động đúng trên Vercel serverless)
+    const EMAIL_LOGIN_ZALO_ID = 'email_login';
+    await Otp.deleteMany({ email, zalo_id: EMAIL_LOGIN_ZALO_ID });
+    const newOtp = new Otp({ email, zalo_id: EMAIL_LOGIN_ZALO_ID, code, expiresAt });
+    await newOtp.save();
+  } catch (dbErr) {
+    console.error('[Email OTP] Lỗi lưu OTP vào DB:', dbErr);
+    return res.status(500).json({ error: 'Lỗi hệ thống khi tạo mã OTP: ' + dbErr.message });
+  }
 
   const htmlContent = `
     <div style="font-family: Arial, sans-serif; max-width: 500px; margin: 0 auto; padding: 24px; border: 1px solid #e2e8f0; border-radius: 12px; background-color: #ffffff;">
@@ -864,7 +878,7 @@ app.post('/api/auth/send-email-otp', async (req, res) => {
 });
 
 // ─────────────────────────────────────────────────────────────────────
-// 1d. Verify Email OTP (server-side check against EMAIL_OTP_CACHE)
+// 1d. Verify Email OTP (server-side check against MongoDB)
 // ─────────────────────────────────────────────────────────────────────
 app.post('/api/auth/verify-email-otp', async (req, res) => {
   const email = (req.body.email || '').trim().toLowerCase();
@@ -876,13 +890,14 @@ app.post('/api/auth/verify-email-otp', async (req, res) => {
     return res.status(400).json({ error: 'Thiếu email hoặc mã OTP.' });
   }
 
-  const cached = EMAIL_OTP_CACHE.get(email);
+  const EMAIL_LOGIN_ZALO_ID = 'email_login';
+  const cached = await Otp.findOne({ email, zalo_id: EMAIL_LOGIN_ZALO_ID });
   if (!cached) {
     return res.status(400).json({ error: 'Không tìm thấy mã OTP cho email này. Vui lòng yêu cầu gửi lại.' });
   }
 
-  if (Date.now() > cached.expiresAt) {
-    EMAIL_OTP_CACHE.delete(email);
+  if (new Date() > cached.expiresAt) {
+    await Otp.deleteMany({ email, zalo_id: EMAIL_LOGIN_ZALO_ID });
     return res.status(400).json({ error: 'Mã OTP đã hết hạn. Vui lòng yêu cầu gửi lại.' });
   }
 
@@ -890,8 +905,8 @@ app.post('/api/auth/verify-email-otp', async (req, res) => {
     return res.status(400).json({ error: 'Mã OTP không chính xác. Vui lòng kiểm tra lại.' });
   }
 
-  // OTP hợp lệ — xóa khỏi cache
-  EMAIL_OTP_CACHE.delete(email);
+  // OTP hợp lệ — xóa khỏi DB để tránh tái sử dụng
+  await Otp.deleteOne({ _id: cached._id });
   console.log(`[Verify OTP] ✅ OTP xác thực thành công cho: ${email}`);
 
   try {
@@ -1214,9 +1229,18 @@ app.post('/api/users', requireAuth, async (req, res) => {
   }
 });
 
+// Helper: kiểm tra role của caller (hỗ trợ cả mảng roles mới và string role cũ)
+const hasRoleServer = (user, roleToCheck) => {
+  if (!user) return false;
+  if (Array.isArray(user.roles) && user.roles.length > 0) {
+    return user.roles.includes(roleToCheck);
+  }
+  return user.role === roleToCheck;
+};
+
 app.delete('/api/users/:id', requireAuth, async (req, res) => {
   const caller = req.authUser;
-  if (caller.role !== 'admin') {
+  if (!hasRoleServer(caller, 'admin')) {
     return res.status(403).json({ error: 'Chỉ admin mới được xóa thành viên.' });
   }
   if (req.params.id === caller.id) {
@@ -1246,7 +1270,8 @@ app.get('/api/meetings', requireAuth, async (req, res) => {
 app.post('/api/meetings', requireAuth, async (req, res) => {
   const caller = req.authUser;
   // Chỉ admin và delegated mới được tạo cuộc họp
-  if (caller.role === 'member') {
+  const canManage = hasRoleServer(caller, 'admin') || hasRoleServer(caller, 'delegated');
+  if (!canManage) {
     return res.status(403).json({ error: 'Chỉ quản lý hoặc người được ủy quyền mới được tạo cuộc họp.' });
   }
 
@@ -1292,7 +1317,7 @@ app.patch('/api/meetings/:id/status', requireAuth, async (req, res) => {
 
     // Chỉ host, admin, hoặc delegated mới được đổi status
     const isHost = meeting.createdBy === caller.id || meeting.hostPhone === caller.phone;
-    if (!isHost && caller.role !== 'admin' && caller.role !== 'delegated') {
+    if (!isHost && !hasRoleServer(caller, 'admin') && !hasRoleServer(caller, 'delegated')) {
       return res.status(403).json({ error: 'Không có quyền thay đổi trạng thái cuộc họp này.' });
     }
 
@@ -1316,7 +1341,7 @@ app.delete('/api/meetings/:id', requireAuth, async (req, res) => {
     if (!meeting) return res.status(404).json({ error: 'Không tìm thấy cuộc họp.' });
 
     const isHost = meeting.createdBy === caller.id;
-    if (!isHost && caller.role !== 'admin') {
+    if (!isHost && !hasRoleServer(caller, 'admin')) {
       return res.status(403).json({ error: 'Chỉ người tạo hoặc admin mới được xóa cuộc họp.' });
     }
 
@@ -1380,7 +1405,8 @@ app.get('/api/meetings/:meetingId/polls', requireAuth, async (req, res) => {
 
 app.post('/api/meetings/:meetingId/polls', requireAuth, async (req, res) => {
   const caller = req.authUser;
-  if (caller.role === 'member') {
+  const canManage = hasRoleServer(caller, 'admin') || hasRoleServer(caller, 'delegated');
+  if (!canManage) {
     return res.status(403).json({ error: 'Chỉ quản lý hoặc người được ủy quyền mới được tạo khảo sát.' });
   }
 
@@ -1460,7 +1486,8 @@ app.post('/api/polls/:pollId/vote', requireAuth, async (req, res) => {
 
 app.delete('/api/meetings/:meetingId/polls/:pollId', requireAuth, async (req, res) => {
   const caller = req.authUser;
-  if (caller.role === 'member') {
+  const canManage = hasRoleServer(caller, 'admin') || hasRoleServer(caller, 'delegated');
+  if (!canManage) {
     return res.status(403).json({ error: 'Không có quyền xóa khảo sát.' });
   }
   const { pollId } = req.params;
@@ -1532,7 +1559,7 @@ app.get('/api/notif-config', requireAuth, async (req, res) => {
 
 app.post('/api/notif-config', requireAuth, async (req, res) => {
   const caller = req.authUser;
-  if (caller.role !== 'admin') {
+  if (!hasRoleServer(caller, 'admin')) {
     return res.status(403).json({ error: 'Chỉ admin mới được thay đổi cấu hình thông báo.' });
   }
   const config = req.body;
@@ -1549,6 +1576,7 @@ app.post('/api/notif-config', requireAuth, async (req, res) => {
 // ─────────────────────────────────────────────────────────────────────
 app.get('/api/dashboard', requireAuth, async (req, res) => {
   try {
+    const caller = req.authUser;
     const now = new Date();
     const todayStart = new Date(now); todayStart.setHours(0, 0, 0, 0);
     const todayEnd = new Date(now); todayEnd.setHours(23, 59, 59, 999);
@@ -1558,17 +1586,25 @@ app.get('/api/dashboard', requireAuth, async (req, res) => {
     const allUsers = await User.find({});
     const allReports = await Report.find({});
 
-    const todayMeetings = allMeetings.filter(m => {
+    const isAdmin = hasRoleServer(caller, 'admin') || hasRoleServer(caller, 'delegated');
+    const userMeetings = isAdmin ? allMeetings : allMeetings.filter(m => 
+      m.createdBy === caller.id ||
+      (m.hostPhone && m.hostPhone === caller.phone) ||
+      (Array.isArray(m.members) && m.members.includes(caller.id)) ||
+      (Array.isArray(m.memberPhones) && m.memberPhones.includes(caller.phone))
+    );
+
+    const todayMeetings = userMeetings.filter(m => {
       const s = new Date(m.startTime);
       return s >= todayStart && s <= todayEnd && m.status !== 'canceled';
     });
 
-    const upcomingMeetings = allMeetings.filter(m => {
+    const upcomingMeetings = userMeetings.filter(m => {
       const s = new Date(m.startTime);
       return s > now && s <= weekEnd && m.status === 'active';
     }).sort((a, b) => new Date(a.startTime) - new Date(b.startTime));
 
-    const activeMeetingNow = allMeetings.filter(m => {
+    const activeMeetingNow = userMeetings.filter(m => {
       const s = new Date(m.startTime);
       const e = new Date(m.endTime);
       return s <= now && e >= now && m.status === 'active';
@@ -1576,7 +1612,7 @@ app.get('/api/dashboard', requireAuth, async (req, res) => {
 
     // Meetings chưa có báo cáo
     const reportedMeetingIds = new Set(allReports.map(r => r.meetingId));
-    const meetingsWithoutReport = allMeetings.filter(m =>
+    const meetingsWithoutReport = userMeetings.filter(m =>
       m.status === 'completed' && !reportedMeetingIds.has(m.id)
     );
 
@@ -1637,11 +1673,21 @@ app.post('/api/meetings/:meetingId/generate-report', requireAuth, async (req, re
       });
     }
 
-    const genAI = new GoogleGenerativeAI(apiKey);
-    const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
-    const result = await model.generateContent(prompt);
-    const response = await result.response;
-    const summaryText = response.text();
+    let summaryText = '';
+    try {
+      const genAI = new GoogleGenerativeAI(apiKey);
+      const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+      const result = await model.generateContent(prompt);
+      const response = await result.response;
+      summaryText = response.text();
+    } catch (aiErr) {
+      console.warn('[Gemini AI Error]: Model call failed, falling back to structured summary:', aiErr.message);
+      summaryText = `**BIÊN BẢN CUỘC HỌP CHÍNH THỨC (${meeting.title})**\n*Thời gian:* ${startTimeStr} - ${endTimeStr}\n\n**1. Các quyết định đã thống nhất:**\n- Thống nhất các nội dung cuộc họp theo ghi chú của các thành viên.\n\n**2. Ghi chú & Phân công công việc:**\n${meetingNotes.map(n => {
+        const user = allUsers.find(u => u.id === n.userId);
+        const userName = user ? user.name : 'Thành viên';
+        return `- **${userName}**: ${n.content}`;
+      }).join('\n')}`;
+    }
 
     res.json({
       title: `Biên bản: ${meeting.title}`,
@@ -1672,7 +1718,7 @@ app.get('/api/health', (req, res) => {
 // ─────────────────────────────────────────────────────────────────────
 app.post('/api/notify/test', requireAuth, async (req, res) => {
   const caller = req.authUser;
-  if (caller.role !== 'admin') {
+  if (!hasRoleServer(caller, 'admin')) {
     return res.status(403).json({ error: 'Chỉ admin mới được gửi thông báo thử.' });
   }
 
@@ -1691,7 +1737,7 @@ app.post('/api/notify/test', requireAuth, async (req, res) => {
 // ─────────────────────────────────────────────────────────────────────
 app.post('/api/notify/run-check', requireAuth, async (req, res) => {
   const caller = req.authUser;
-  if (caller.role !== 'admin') {
+  if (!hasRoleServer(caller, 'admin')) {
     return res.status(403).json({ error: 'Chỉ admin mới được kích hoạt kiểm tra nhắc nhở.' });
   }
 
