@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Download, FileText, Trash2, LayoutDashboard, Calendar, Video, AlertTriangle, X } from 'lucide-react';
-import { Header } from 'zmp-ui';
+import { Header, App as ZMPApp, ZMPRouter } from 'zmp-ui';
 
 import { Storage } from './utils/storage';
 import { useAuth, getRoleLabel } from './hooks/useAuth';
@@ -234,7 +234,9 @@ function App() {
   };
 
   return (
-    <div className={`app-container font-${appFontSize} ${isDarkMode ? 'dark-theme' : ''}`}>
+    <ZMPApp theme={isDarkMode ? 'dark' : 'light'}>
+      <ZMPRouter>
+        <div className={`app-container font-${appFontSize} ${isDarkMode ? 'dark-theme' : ''}`}>
       {/* Splash Screen – chỉ hiện lần đầu mỗi session */}
       {showSplash && (
         <SplashScreen
@@ -648,7 +650,9 @@ function App() {
           )}
         </>
       )}
-    </div>
+        </div>
+      </ZMPRouter>
+    </ZMPApp>
   );
 }
 
