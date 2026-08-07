@@ -101,14 +101,6 @@ npm run dev
 
 ---
 
-## 📊 Tài Liệu Thuyết Trình Dự Án
-
-Dự án đi kèm bộ tài liệu thuyết trình đầy đủ hỗ trợ báo cáo:
-- **Slide Thuyết Trình Web App**: Mở file [`presentation.html`](./presentation.html) trên trình duyệt.
-- **File Slide PowerPoint (Mở Canva)**: File [`Smeet_Presentation_ZaloMiniApp.pptx`](./Smeet_Presentation_ZaloMiniApp.pptx).
-- **Kịch Bản Thuyết Trình Lời Nói**: Đọc file [`presentation_guide.md`](./presentation_guide.md).
-
----
 
 ## 📝 License & Tác Giả
 
